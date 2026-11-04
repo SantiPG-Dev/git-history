@@ -1,0 +1,171 @@
+.root {
+    -fx-base: #2a2a3c;
+    -fx-background: #1e1e2e;
+    -fx-control-inner-background: #262638;
+    -fx-control-inner-background-alt: #2b2b40;
+    -fx-accent: #4cc2ff;
+    -fx-focus-color: #4cc2ff;
+    -fx-faint-focus-color: #4cc2ff22;
+    -fx-font-size: 12px;
+}
+
+.tool-bar {
+    -fx-background-color: #191926;
+    -fx-padding: 6;
+}
+
+.status-bar {
+    -fx-background-color: #191926;
+    -fx-padding: 4 10 4 10;
+}
+
+.section-header {
+    -fx-font-weight: bold;
+    -fx-text-fill: #8a8fa3;
+    -fx-padding: 8 4 4 4;
+    -fx-font-size: 11px;
+}
+
+.graph-message {
+    -fx-text-fill: #e6e6f0;
+}
+
+.graph-meta {
+    -fx-text-fill: #8a8fa3;
+    -fx-font-size: 11px;
+}
+
+.graph-hash {
+    -fx-text-fill: #6b7089;
+    -fx-font-family: "monospace";
+    -fx-font-size: 11px;
+}
+
+.ref-chip {
+    -fx-padding: 1 7 1 7;
+    -fx-background-radius: 8;
+    -fx-font-size: 10px;
+    -fx-font-weight: bold;
+}
+
+.ref-local {
+    -fx-background-color: #1f6feb;
+    -fx-text-fill: #ffffff;
+}
+
+.ref-remote {
+    -fx-background-color: #3a3a52;
+    -fx-text-fill: #b9bee0;
+}
+
+.ref-tag {
+    -fx-background-color: #9e6a03;
+    -fx-text-fill: #ffffff;
+}
+
+.ref-head {
+    -fx-border-color: #7ee787;
+    -fx-border-radius: 8;
+    -fx-border-width: 1;
+}
+
+.diff-view {
+    -fx-background-color: #1a1a28;
+}
+
+.diff-view .list-cell {
+    -fx-font-family: "monospace";
+    -fx-font-size: 11px;
+    -fx-padding: 0 6 0 6;
+    -fx-text-fill: #c9ccdb;
+}
+
+.diff-line-add {
+    -fx-text-fill: #7ee787;
+    -fx-background-color: #7ee78711;
+}
+
+.diff-line-del {
+    -fx-text-fill: #ff7b72;
+    -fx-background-color: #ff7b7211;
+}
+
+.diff-line-hunk {
+    -fx-text-fill: #4cc2ff;
+}
+
+.diff-line-meta {
+    -fx-text-fill: #8a8fa3;
+    -fx-font-weight: bold;
+}
+
+.branch-label {
+    -fx-text-fill: #8a8fa3;
+    -fx-font-weight: bold;
+}
+
+.branch-header {
+    -fx-font-weight: bold;
+    -fx-text-fill: #8a8fa3;
+}
+
+.branch-tag {
+    -fx-text-fill: #e3b341;
+}
+
+.welcome-title {
+    -fx-font-size: 28px;
+    -fx-font-weight: bold;
+    -fx-text-fill: #e6e6f0;
+}
+
+.welcome-sub {
+    -fx-text-fill: #8a8fa3;
+}
+
+.commit-message-title {
+    -fx-font-weight: bold;
+    -fx-font-size: 13px;
+}
+
+.detail-meta {
+    -fx-text-fill: #8a8fa3;
+    -fx-font-size: 11px;
+}
+
+.badge {
+    -fx-font-size: 10px;
+    -fx-font-weight: bold;
+    -fx-padding: 0 5 0 5;
+    -fx-background-radius: 4;
+    -fx-min-width: 16;
+    -fx-alignment: center;
+}
+
+.badge-add {
+    -fx-background-color: #238636;
+    -fx-text-fill: white;
+}
+
+.badge-mod {
+    -fx-background-color: #9e6a03;
+    -fx-text-fill: white;
+}
+
+.badge-del {
+    -fx-background-color: #da3633;
+    -fx-text-fill: white;
+}
+
+.badge-ren {
+    -fx-background-color: #1f6feb;
+    -fx-text-fill: white;
+}
+
+.list-cell {
+    -fx-background-color: transparent;
+}
+
+.tree-cell {
+    -fx-background-color: transparent;
+}
