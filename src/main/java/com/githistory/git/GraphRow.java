@@ -15,5 +15,10 @@ public record GraphRow(
         List<Integer> bottomVerticals,
         List<Diagonal> diagonals) {
 
-    public record Diagonal(int fromLane, int toLane, boolean toBottom) {}
+    /**
+     * fromTop: la curva entra desde arriba de la fila (convergencia de carriles).
+     * toBottom: la curva sale del nodo hacia abajo (nueva rama hacia el padre).
+     * Ninguna: línea horizontal a un carril ya existente en la misma fila.
+     */
+    public record Diagonal(int fromLane, int toLane, boolean fromTop, boolean toBottom) {}
 }

@@ -94,6 +94,7 @@ public class StagingView {
         messageArea.setPrefRowCount(3);
         Button commit = new Button("Commit");
         commit.setMaxWidth(Double.MAX_VALUE);
+        commit.getStyleClass().add("accent-button");
         commit.setOnAction(e -> doCommit());
 
         lists.getChildren().addAll(

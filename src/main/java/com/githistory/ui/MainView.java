@@ -166,8 +166,10 @@ public class MainView {
         Label sub = new Label("Un cliente Git visual, libre y sin IA. Abre o clona un repositorio para empezar.");
         sub.getStyleClass().add("welcome-sub");
         Button open = new Button("Abrir repositorio…");
+        open.getStyleClass().add("accent-button");
         open.setOnAction(e -> openRepoDialog());
         Button clone = new Button("Clonar repositorio…");
+        clone.getStyleClass().add("accent-button");
         clone.setOnAction(e -> cloneRepo());
         VBox box = new VBox(12, title, sub, open, clone);
         box.setAlignment(Pos.CENTER);
