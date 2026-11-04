@@ -22,7 +22,17 @@ public final class GraphLayout {
         for (CommitInfo commit : commits) {
             int col = lanes.indexOf(commit.id());
             boolean expected = col >= 0;
-            if (!expected) {
+            List<GraphRow.Diagonal> diagonals = new ArrayList<>();
+            if (expected) {
+                // Otros carriles que también esperaban este commit (rama que
+                // bifurcó aquí): convergen con una curva y se liberan.
+                for (int j = lanes.size() - 1; j >= 0; j--) {
+                    if (j != col && commit.id().equals(lanes.get(j))) {
+                        lanes.set(j, null);
+                        diagonals.add(new GraphRow.Diagonal(j, col, true, false));
+                    }
+                }
+            } else {
                 col = lanes.indexOf(null);
                 if (col < 0) {
                     col = lanes.size();
@@ -33,31 +43,30 @@ public final class GraphLayout {
 
             boolean colReused = false;
             List<Integer> newLanes = new ArrayList<>();
-            List<GraphRow.Diagonal> diagonals = new ArrayList<>();
             List<String> parents = commit.parents();
             for (int i = 0; i < parents.size(); i++) {
                 String parent = parents.get(i);
-                int existing = lanes.indexOf(parent);
-                if (existing >= 0) {
-                    diagonals.add(new GraphRow.Diagonal(col, existing, false));
+                if (i == 0) {
+                    // El primer padre siempre continúa en el carril del commit,
+                    // aunque otro carril ya lo espere (duplicado temporal que
+                    // se resolverá con una curva de convergencia al llegar).
+                    lanes.set(col, parent);
+                    colReused = true;
                     continue;
                 }
-                int slot;
-                if (i == 0) {
-                    slot = col;
-                    colReused = true;
-                } else {
-                    slot = lanes.indexOf(null);
-                    if (slot < 0) {
-                        slot = lanes.size();
-                        lanes.add(null);
-                    }
-                    newLanes.add(slot);
+                int existing = lanes.indexOf(parent);
+                if (existing >= 0) {
+                    diagonals.add(new GraphRow.Diagonal(col, existing, false, false));
+                    continue;
                 }
+                int slot = lanes.indexOf(null);
+                if (slot < 0) {
+                    slot = lanes.size();
+                    lanes.add(null);
+                }
+                newLanes.add(slot);
                 lanes.set(slot, parent);
-                if (slot != col) {
-                    diagonals.add(new GraphRow.Diagonal(col, slot, true));
-                }
+                diagonals.add(new GraphRow.Diagonal(col, slot, false, true));
             }
 
             List<Integer> full = new ArrayList<>();

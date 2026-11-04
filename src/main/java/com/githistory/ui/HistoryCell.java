@@ -25,13 +25,13 @@ import java.util.function.IntSupplier;
  */
 public class HistoryCell extends ListCell<GraphRow> {
 
-    public static final double LANE_WIDTH = 14;
-    public static final double ROW_HEIGHT = 26;
+    public static final double LANE_WIDTH = 16;
+    public static final double ROW_HEIGHT = 28;
 
     private static final Color[] PALETTE = {
-            Color.web("#4cc2ff"), Color.web("#ff7b72"), Color.web("#7ee787"),
-            Color.web("#e3b341"), Color.web("#d2a8ff"), Color.web("#ff9bce"),
-            Color.web("#76e3ea"), Color.web("#ffa657")
+            Color.web("#89b4fa"), Color.web("#f38ba8"), Color.web("#a6e3a1"),
+            Color.web("#f9e2af"), Color.web("#cba6f7"), Color.web("#f5c2e7"),
+            Color.web("#94e2d5"), Color.web("#fab387")
     };
     private static final DateTimeFormatter TIME_FORMAT =
             DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm").withZone(ZoneId.systemDefault());
@@ -111,7 +111,7 @@ public class HistoryCell extends ListCell<GraphRow> {
     private void draw(GraphRow row) {
         GraphicsContext g = canvas.getGraphicsContext2D();
         g.clearRect(0, 0, canvas.getWidth(), canvas.getHeight());
-        g.setLineWidth(1.6);
+        g.setLineWidth(2);
         double mid = ROW_HEIGHT / 2;
         for (int lane : row.fullVerticals()) {
             line(g, lane, laneX(lane), 0, laneX(lane), ROW_HEIGHT);
@@ -123,22 +123,53 @@ public class HistoryCell extends ListCell<GraphRow> {
             line(g, lane, laneX(lane), mid, laneX(lane), ROW_HEIGHT);
         }
         for (GraphRow.Diagonal d : row.diagonals()) {
-            line(g, d.toLane(), laneX(d.fromLane()), mid, laneX(d.toLane()),
-                    d.toBottom() ? ROW_HEIGHT : mid);
+            curve(g, d, mid);
         }
+
         double x = laneX(row.column());
         Color color = color(row.column());
+        boolean isHead = row.commit().refs().stream().anyMatch(CommitInfo.RefLabel::current);
         g.setFill(Color.web("#1e1e2e"));
-        g.fillOval(x - 4.5, mid - 4.5, 9, 9);
+        g.fillOval(x - 5.5, mid - 5.5, 11, 11);
         g.setStroke(color);
-        g.strokeOval(x - 4.5, mid - 4.5, 9, 9);
+        g.strokeOval(x - 5.5, mid - 5.5, 11, 11);
         g.setFill(color);
-        g.fillOval(x - 2, mid - 2, 4, 4);
+        if (isHead) {
+            g.fillOval(x - 3.5, mid - 3.5, 7, 7);
+            g.setFill(Color.web("#1e1e2e"));
+            g.fillOval(x - 1.5, mid - 1.5, 3, 3);
+        } else {
+            g.fillOval(x - 2, mid - 2, 4, 4);
+        }
     }
 
     private void line(GraphicsContext g, int lane, double x1, double y1, double x2, double y2) {
         g.setStroke(color(lane));
         g.strokeLine(x1, y1, x2, y2);
+    }
+
+    /**
+     * Curva suave entre carriles:
+     * - fromTop: un carril que muere converge en el nodo de esta fila.
+     * - toBottom: del nodo nace un carril nuevo hacia el padre (merge/rama).
+     * - ninguna: línea horizontal a un carril ya existente en la misma fila.
+     */
+    private void curve(GraphicsContext g, GraphRow.Diagonal d, double mid) {
+        g.setStroke(color(d.toBottom() ? d.toLane() : d.fromLane()));
+        double fromX = laneX(d.fromLane());
+        double toX = laneX(d.toLane());
+        g.beginPath();
+        if (d.fromTop()) {
+            g.moveTo(fromX, 0);
+            g.quadraticCurveTo(fromX, mid, toX, mid);
+        } else if (d.toBottom()) {
+            g.moveTo(fromX, mid);
+            g.quadraticCurveTo(toX, mid, toX, ROW_HEIGHT);
+        } else {
+            g.moveTo(fromX, mid);
+            g.lineTo(toX, mid);
+        }
+        g.stroke();
     }
 
     private static double laneX(int lane) {

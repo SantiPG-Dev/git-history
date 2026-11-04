@@ -1,137 +1,287 @@
+/* Tema oscuro moderno — paleta inspirada en Catppuccin Mocha */
+
 .root {
-    -fx-base: #2a2a3c;
+    -fx-base: #313244;
     -fx-background: #1e1e2e;
-    -fx-control-inner-background: #262638;
-    -fx-control-inner-background-alt: #2b2b40;
-    -fx-accent: #4cc2ff;
-    -fx-focus-color: #4cc2ff;
-    -fx-faint-focus-color: #4cc2ff22;
-    -fx-font-size: 12px;
+    -fx-control-inner-background: #262637;
+    -fx-control-inner-background-alt: #2a2a3d;
+    -fx-accent: #89b4fa;
+    -fx-focus-color: #89b4fa55;
+    -fx-faint-focus-color: #89b4fa22;
+    -fx-font-size: 12.5px;
+    -fx-font-family: "Inter", "Cantarell", "Noto Sans", "Segoe UI", sans-serif;
 }
 
+/* ── Barras ─────────────────────────────────────────────── */
+
 .tool-bar {
-    -fx-background-color: #191926;
-    -fx-padding: 6;
+    -fx-background-color: #181825;
+    -fx-padding: 8;
+    -fx-spacing: 6;
 }
 
 .status-bar {
-    -fx-background-color: #191926;
-    -fx-padding: 4 10 4 10;
+    -fx-background-color: #181825;
+    -fx-padding: 5 12 5 12;
 }
 
-.section-header {
-    -fx-font-weight: bold;
-    -fx-text-fill: #8a8fa3;
-    -fx-padding: 8 4 4 4;
-    -fx-font-size: 11px;
+/* ── Botones ────────────────────────────────────────────── */
+
+.button {
+    -fx-background-color: transparent;
+    -fx-border-color: #45475a;
+    -fx-border-radius: 6;
+    -fx-background-radius: 6;
+    -fx-padding: 5 12 5 12;
+    -fx-text-fill: #cdd6f4;
 }
+
+.button:hover {
+    -fx-background-color: #313244;
+    -fx-border-color: #585b70;
+}
+
+.button:pressed {
+    -fx-background-color: #45475a;
+}
+
+.button:disabled {
+    -fx-opacity: 0.4;
+}
+
+.accent-button {
+    -fx-background-color: #89b4fa;
+    -fx-border-color: transparent;
+    -fx-text-fill: #11111b;
+    -fx-font-weight: bold;
+}
+
+.accent-button:hover {
+    -fx-background-color: #a6c8ff;
+}
+
+.accent-button:pressed {
+    -fx-background-color: #7398d8;
+}
+
+/* ── Pestañas ───────────────────────────────────────────── */
+
+.tab-pane .tab-header-background {
+    -fx-background-color: #181825;
+}
+
+.tab-pane .tab {
+    -fx-background-color: transparent;
+    -fx-background-radius: 6 6 0 0;
+    -fx-padding: 6 14 6 14;
+}
+
+.tab-pane .tab .tab-label {
+    -fx-text-fill: #a6adc8;
+}
+
+.tab-pane .tab:hover .tab-label {
+    -fx-text-fill: #cdd6f4;
+}
+
+.tab-pane .tab:selected {
+    -fx-background-color: #1e1e2e;
+}
+
+.tab-pane .tab:selected .tab-label {
+    -fx-text-fill: #89b4fa;
+}
+
+/* ── Listas y árboles ───────────────────────────────────── */
+
+.list-view,
+.tree-view {
+    -fx-background-color: transparent;
+}
+
+.list-cell,
+.tree-cell {
+    -fx-background-color: transparent;
+    -fx-text-fill: #cdd6f4;
+}
+
+.list-cell:filled:hover,
+.tree-cell:filled:hover {
+    -fx-background-color: #31324466;
+}
+
+.list-cell:filled:selected,
+.tree-cell:filled:selected {
+    -fx-background-color: #313244;
+}
+
+/* ── SplitPane ──────────────────────────────────────────── */
+
+.split-pane > .split-pane-divider {
+    -fx-background-color: #11111b;
+    -fx-padding: 0 1 0 1;
+}
+
+/* ── Campos de texto ────────────────────────────────────── */
+
+.text-field,
+.text-area {
+    -fx-background-color: #262637;
+    -fx-border-color: #45475a;
+    -fx-border-radius: 6;
+    -fx-background-radius: 6;
+    -fx-text-fill: #cdd6f4;
+}
+
+.text-area .content {
+    -fx-background-color: #262637;
+}
+
+.text-field:focused,
+.text-area:focused {
+    -fx-border-color: #89b4fa;
+}
+
+/* ── Scrollbars ─────────────────────────────────────────── */
+
+.scroll-bar {
+    -fx-background-color: transparent;
+}
+
+.scroll-bar:vertical {
+    -fx-pref-width: 10;
+}
+
+.scroll-bar:horizontal {
+    -fx-pref-height: 10;
+}
+
+.scroll-bar .thumb {
+    -fx-background-color: #45475a;
+    -fx-background-radius: 5;
+}
+
+.scroll-bar .thumb:hover {
+    -fx-background-color: #585b70;
+}
+
+.scroll-bar .track {
+    -fx-background-color: transparent;
+}
+
+.scroll-bar .increment-button,
+.scroll-bar .decrement-button {
+    -fx-opacity: 0;
+    -fx-pref-height: 0;
+    -fx-pref-width: 0;
+}
+
+/* ── ProgressBar ────────────────────────────────────────── */
+
+.progress-bar > .track {
+    -fx-background-color: #313244;
+    -fx-background-radius: 4;
+}
+
+.progress-bar > .bar {
+    -fx-background-color: #89b4fa;
+    -fx-background-radius: 4;
+}
+
+/* ── Historial ──────────────────────────────────────────── */
 
 .graph-message {
-    -fx-text-fill: #e6e6f0;
+    -fx-text-fill: #cdd6f4;
 }
 
 .graph-meta {
-    -fx-text-fill: #8a8fa3;
+    -fx-text-fill: #6c7086;
     -fx-font-size: 11px;
 }
 
 .graph-hash {
-    -fx-text-fill: #6b7089;
-    -fx-font-family: "monospace";
+    -fx-text-fill: #585b70;
+    -fx-font-family: "JetBrains Mono", "Fira Code", "monospace";
     -fx-font-size: 11px;
 }
 
 .ref-chip {
-    -fx-padding: 1 7 1 7;
-    -fx-background-radius: 8;
+    -fx-padding: 2 8 2 8;
+    -fx-background-radius: 10;
     -fx-font-size: 10px;
     -fx-font-weight: bold;
 }
 
 .ref-local {
-    -fx-background-color: #1f6feb;
-    -fx-text-fill: #ffffff;
+    -fx-background-color: #89b4fa;
+    -fx-text-fill: #11111b;
 }
 
 .ref-remote {
-    -fx-background-color: #3a3a52;
-    -fx-text-fill: #b9bee0;
+    -fx-background-color: #45475a;
+    -fx-text-fill: #cdd6f4;
 }
 
 .ref-tag {
-    -fx-background-color: #9e6a03;
-    -fx-text-fill: #ffffff;
+    -fx-background-color: #f9e2af;
+    -fx-text-fill: #11111b;
 }
 
 .ref-head {
-    -fx-border-color: #7ee787;
-    -fx-border-radius: 8;
-    -fx-border-width: 1;
+    -fx-border-color: #a6e3a1;
+    -fx-border-radius: 10;
+    -fx-border-width: 1.5;
 }
 
-.diff-view {
-    -fx-background-color: #1a1a28;
-}
-
-.diff-view .list-cell {
-    -fx-font-family: "monospace";
-    -fx-font-size: 11px;
-    -fx-padding: 0 6 0 6;
-    -fx-text-fill: #c9ccdb;
-}
-
-.diff-line-add {
-    -fx-text-fill: #7ee787;
-    -fx-background-color: #7ee78711;
-}
-
-.diff-line-del {
-    -fx-text-fill: #ff7b72;
-    -fx-background-color: #ff7b7211;
-}
-
-.diff-line-hunk {
-    -fx-text-fill: #4cc2ff;
-}
-
-.diff-line-meta {
-    -fx-text-fill: #8a8fa3;
-    -fx-font-weight: bold;
-}
-
-.branch-label {
-    -fx-text-fill: #8a8fa3;
-    -fx-font-weight: bold;
-}
+/* ── Panel de ramas ─────────────────────────────────────── */
 
 .branch-header {
     -fx-font-weight: bold;
-    -fx-text-fill: #8a8fa3;
+    -fx-text-fill: #6c7086;
 }
 
 .branch-tag {
-    -fx-text-fill: #e3b341;
+    -fx-text-fill: #f9e2af;
 }
 
-.welcome-title {
-    -fx-font-size: 28px;
+.branch-label {
+    -fx-text-fill: #89b4fa;
     -fx-font-weight: bold;
-    -fx-text-fill: #e6e6f0;
 }
 
-.welcome-sub {
-    -fx-text-fill: #8a8fa3;
+/* ── Diff ───────────────────────────────────────────────── */
+
+.diff-view {
+    -fx-background-color: #181825;
 }
 
-.commit-message-title {
-    -fx-font-weight: bold;
-    -fx-font-size: 13px;
-}
-
-.detail-meta {
-    -fx-text-fill: #8a8fa3;
+.diff-view .list-cell {
+    -fx-font-family: "JetBrains Mono", "Fira Code", "monospace";
     -fx-font-size: 11px;
+    -fx-padding: 0 8 0 8;
+    -fx-text-fill: #a6adc8;
 }
+
+.diff-line-add {
+    -fx-text-fill: #a6e3a1;
+    -fx-background-color: #a6e3a114;
+}
+
+.diff-line-del {
+    -fx-text-fill: #f38ba8;
+    -fx-background-color: #f38ba814;
+}
+
+.diff-line-hunk {
+    -fx-text-fill: #89b4fa;
+}
+
+.diff-line-meta {
+    -fx-text-fill: #6c7086;
+    -fx-font-weight: bold;
+}
+
+/* ── Badges de estado ───────────────────────────────────── */
 
 .badge {
     -fx-font-size: 10px;
@@ -143,29 +293,64 @@
 }
 
 .badge-add {
-    -fx-background-color: #238636;
-    -fx-text-fill: white;
+    -fx-background-color: #a6e3a1;
+    -fx-text-fill: #11111b;
 }
 
 .badge-mod {
-    -fx-background-color: #9e6a03;
-    -fx-text-fill: white;
+    -fx-background-color: #f9e2af;
+    -fx-text-fill: #11111b;
 }
 
 .badge-del {
-    -fx-background-color: #da3633;
-    -fx-text-fill: white;
+    -fx-background-color: #f38ba8;
+    -fx-text-fill: #11111b;
 }
 
 .badge-ren {
-    -fx-background-color: #1f6feb;
-    -fx-text-fill: white;
+    -fx-background-color: #89b4fa;
+    -fx-text-fill: #11111b;
 }
 
-.list-cell {
-    -fx-background-color: transparent;
+/* ── Detalle de commit ──────────────────────────────────── */
+
+.section-header {
+    -fx-font-weight: bold;
+    -fx-text-fill: #6c7086;
+    -fx-padding: 10 4 4 4;
+    -fx-font-size: 10.5px;
 }
 
-.tree-cell {
-    -fx-background-color: transparent;
+.commit-message-title {
+    -fx-font-weight: bold;
+    -fx-font-size: 13.5px;
+    -fx-text-fill: #cdd6f4;
+}
+
+.detail-meta {
+    -fx-text-fill: #6c7086;
+    -fx-font-size: 11px;
+}
+
+/* ── Bienvenida ─────────────────────────────────────────── */
+
+.welcome-title {
+    -fx-font-size: 34px;
+    -fx-font-weight: bold;
+    -fx-text-fill: #cdd6f4;
+}
+
+.welcome-sub {
+    -fx-text-fill: #6c7086;
+    -fx-font-size: 13px;
+}
+
+/* ── Diálogos ───────────────────────────────────────────── */
+
+.dialog-pane {
+    -fx-background-color: #1e1e2e;
+}
+
+.dialog-pane .header-panel {
+    -fx-background-color: #181825;
 }
