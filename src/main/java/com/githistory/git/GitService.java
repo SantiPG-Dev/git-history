@@ -39,6 +39,7 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
@@ -484,6 +485,26 @@ public class GitService implements AutoCloseable {
         } catch (IOException | org.eclipse.jgit.errors.ConfigInvalidException e) {
             return new org.eclipse.jgit.lib.Config();
         }
+    }
+
+    public record ReflogEntryInfo(String oldId, String newId, String shortNewId,
+                                  String message, String author, Instant when) {}
+
+    /** Reflog de HEAD, de más reciente a más antiguo (para recuperar commits). */
+    public List<ReflogEntryInfo> reflog() throws GitAPIException {
+        List<ReflogEntryInfo> out = new ArrayList<>();
+        for (org.eclipse.jgit.lib.ReflogEntry entry : git.reflog().call()) {
+            String newId = entry.getNewId().getName();
+            PersonIdent who = entry.getWho();
+            out.add(new ReflogEntryInfo(
+                    entry.getOldId().getName(),
+                    newId,
+                    newId.substring(0, 7),
+                    entry.getComment(),
+                    who != null ? who.getName() : "",
+                    who != null ? who.getWhen().toInstant() : null));
+        }
+        return out;
     }
 
     /** URL del remoto indicado (normalmente "origin"), o null si no existe. */

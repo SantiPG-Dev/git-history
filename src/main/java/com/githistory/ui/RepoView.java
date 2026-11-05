@@ -863,9 +863,13 @@ public class RepoView {
     // ── Acciones del menú contextual de commits ──────────────────────────
 
     private void createBranchAt(CommitInfo commit) {
+        createBranchAtSha(commit.id(), commit.shortId());
+    }
+
+    private void createBranchAtSha(String sha, String shortSha) {
         TextInputDialog dialog = new TextInputDialog();
         dialog.setTitle("Nueva rama");
-        dialog.setHeaderText("Crear una rama en el commit " + commit.shortId());
+        dialog.setHeaderText("Crear una rama en el commit " + shortSha);
         dialog.setContentText("Nombre:");
         dialog.showAndWait().map(String::trim).filter(n -> !n.isEmpty()).ifPresent(name -> {
             if (!git.isValidBranchName(name)) {
@@ -874,12 +878,12 @@ public class RepoView {
                 return;
             }
             runTask("Creando rama " + name, p -> {
-                git.createBranchAt(name, commit.id());
+                git.createBranchAt(name, sha);
                 return null;
             }, v -> {
                 undoManager.push(new UndoManager.Action("Rama: " + name,
                         g -> g.deleteBranch(name),
-                        g -> g.createBranchAt(name, commit.id())));
+                        g -> g.createBranchAt(name, sha)));
                 updateUndoButtons();
                 refreshAll();
             });
@@ -887,24 +891,54 @@ public class RepoView {
     }
 
     private void checkoutCommit(CommitInfo commit) {
+        checkoutSha(commit.id(), commit.shortId());
+    }
+
+    private void checkoutSha(String sha, String shortSha) {
         Alert confirm = new Alert(Alert.AlertType.CONFIRMATION,
-                "Esto dejará HEAD separado en el commit " + commit.shortId() + ". ¿Continuar?");
+                "Esto dejará HEAD separado en el commit " + shortSha + ". ¿Continuar?");
         confirm.setHeaderText("Checkout de commit");
         confirm.showAndWait().filter(bt -> bt == ButtonType.OK).ifPresent(bt ->
-                runTask("Checkout " + commit.shortId(), p -> {
+                runTask("Checkout " + shortSha, p -> {
                     String previousRef = git.headRef();
-                    git.checkout(commit.id());
+                    git.checkout(sha);
                     return previousRef;
                 }, previousRef -> {
-                    recordCheckout(commit.shortId(), previousRef);
+                    recordCheckout(shortSha, previousRef);
                     refreshAll();
                 }));
     }
 
+    /** Abre el visor de reflog de HEAD. */
+    public void openReflog() {
+        runTask("Cargando reflog", p -> git.reflog(), entries ->
+                new ReflogDialog(getRoot().getScene().getWindow(), entries,
+                        new ReflogDialog.ReflogActions() {
+                            @Override
+                            public void createBranchAt(String sha) {
+                                createBranchAtSha(sha, sha.substring(0, 7));
+                            }
+
+                            @Override
+                            public void checkout(String sha) {
+                                checkoutSha(sha, sha.substring(0, 7));
+                            }
+
+                            @Override
+                            public void copyHash(String sha) {
+                                copySha(sha);
+                            }
+                        }).showAndWait());
+    }
+
     private void copyHash(CommitInfo commit) {
+        copySha(commit.id());
+    }
+
+    private void copySha(String sha) {
         ClipboardContent content = new ClipboardContent();
-        content.putString(commit.id());
+        content.putString(sha);
         Clipboard.getSystemClipboard().setContent(content);
-        statusLabel.setText("Hash copiado: " + commit.shortId());
+        statusLabel.setText("Hash copiado: " + sha.substring(0, 7));
     }
 }

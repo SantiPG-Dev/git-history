@@ -166,6 +166,7 @@ public class MainView {
             commands.add(new CommandPalette.Command("Guardar cambios en stash", repo::stash));
             commands.add(new CommandPalette.Command("Pop de stash", repo::stashPop));
             commands.add(new CommandPalette.Command("Abrir terminal", repo::openTerminal));
+            commands.add(new CommandPalette.Command("Reflog de HEAD…", repo::openReflog));
             for (GitService.BranchInfo b : repo.knownBranches()) {
                 if (!b.current()) {
                     commands.add(new CommandPalette.Command(
@@ -269,15 +270,23 @@ public class MainView {
         MenuItem paleta = new MenuItem("Paleta de comandos…");
         paleta.setAccelerator(KeyCombination.keyCombination("Ctrl+K"));
         paleta.setOnAction(e -> showCommandPalette());
+        MenuItem reflog = new MenuItem("Reflog de HEAD…");
+        reflog.setOnAction(e -> {
+            RepoView repo = activeRepo();
+            if (repo != null) {
+                repo.openReflog();
+            }
+        });
         CheckMenuItem panelRamas = new CheckMenuItem("Panel de ramas");
         panelRamas.setSelected(true);
         CheckMenuItem panelDerecho = new CheckMenuItem("Panel de detalle");
         panelDerecho.setSelected(true);
         panelRamas.setOnAction(e -> togglePanels(panelRamas.isSelected(), panelDerecho.isSelected()));
         panelDerecho.setOnAction(e -> togglePanels(panelRamas.isSelected(), panelDerecho.isSelected()));
-        ver.getItems().addAll(paleta, new SeparatorMenuItem(), panelRamas, panelDerecho);
+        ver.getItems().addAll(paleta, reflog, new SeparatorMenuItem(), panelRamas, panelDerecho);
         ver.setOnShowing(e -> {
             boolean noRepo = activeRepo() == null;
+            reflog.setDisable(noRepo);
             panelRamas.setDisable(noRepo);
             panelDerecho.setDisable(noRepo);
         });
