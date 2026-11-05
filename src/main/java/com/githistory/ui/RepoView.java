@@ -82,6 +82,7 @@ public class RepoView {
     private final Node branchNode;
     private final Node centerNode;
     private final Node rightNode;
+    private TabPane rightTabs;
 
     private int historyMaxLanes = 1;
     private Path repoPath;
@@ -147,7 +148,7 @@ public class RepoView {
         Tab changesTab = new Tab("Cambios", stagingView.getRoot());
         commitTab.setClosable(false);
         changesTab.setClosable(false);
-        TabPane rightTabs = new TabPane(commitTab, changesTab);
+        rightTabs = new TabPane(commitTab, changesTab);
         rightTabs.setMinWidth(340);
 
         branchNode = branchPanel.getRoot();
@@ -620,6 +621,11 @@ public class RepoView {
                 return null;
             }, v -> refreshAll());
         }
+    }
+
+    /** Selecciona la pestaña Cambios del panel derecho (p. ej. tras un merge). */
+    public void showChangesTab() {
+        rightTabs.getSelectionModel().select(1);
     }
 
     /** Muestra el blame de un archivo en un commit (menú contextual del detalle). */
