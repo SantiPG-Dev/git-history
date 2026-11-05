@@ -39,6 +39,7 @@ public class HistoryCell extends ListCell<GraphRow> {
 
     public interface CommitActions {
         void createBranchAt(CommitInfo commit);
+        void createTagAt(CommitInfo commit);
         void checkoutCommit(CommitInfo commit);
         void cherryPick(CommitInfo commit);
         void revert(CommitInfo commit);
@@ -103,6 +104,8 @@ public class HistoryCell extends ListCell<GraphRow> {
 
         MenuItem branch = new MenuItem("Crear rama aquí…");
         branch.setOnAction(e -> actions.createBranchAt(row.commit()));
+        MenuItem tag = new MenuItem("Crear etiqueta aquí…");
+        tag.setOnAction(e -> actions.createTagAt(row.commit()));
         MenuItem checkout = new MenuItem("Checkout (HEAD separado)");
         checkout.setOnAction(e -> actions.checkoutCommit(row.commit()));
         MenuItem cherryPick = new MenuItem("Cherry-pick en la rama actual");
@@ -113,7 +116,7 @@ public class HistoryCell extends ListCell<GraphRow> {
         reset.setOnAction(e -> actions.resetToHere(row.commit()));
         MenuItem copy = new MenuItem("Copiar hash");
         copy.setOnAction(e -> actions.copyHash(row.commit()));
-        setContextMenu(new ContextMenu(branch, checkout,
+        setContextMenu(new ContextMenu(branch, tag, checkout,
                 new SeparatorMenuItem(), cherryPick, revert, reset,
                 new SeparatorMenuItem(), copy));
 

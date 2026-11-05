@@ -218,6 +218,9 @@ public class BranchPanel {
             } else if (item instanceof TagInfo tag) {
                 setText(tag.name());
                 getStyleClass().add("branch-tag");
+                MenuItem delete = new MenuItem("Eliminar etiqueta");
+                delete.setOnAction(e -> repo.deleteTag(tag.name()));
+                setContextMenu(new ContextMenu(delete));
             } else if (item instanceof GitService.StashEntry stash) {
                 setText("stash@{" + stash.index() + "} — " + stash.message());
                 setContextMenu(menuForStash(stash));

@@ -13,6 +13,7 @@ import javafx.scene.Node;
 import javafx.scene.control.Alert;
 import javafx.scene.control.Button;
 import javafx.scene.control.ButtonType;
+import javafx.scene.control.Dialog;
 import javafx.scene.control.Label;
 import javafx.scene.control.ListView;
 import javafx.scene.control.MenuButton;
@@ -35,6 +36,7 @@ import javafx.scene.input.KeyCodeCombination;
 import javafx.scene.input.KeyCombination;
 import javafx.scene.input.KeyEvent;
 import javafx.scene.layout.BorderPane;
+import javafx.scene.layout.GridPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.Region;
@@ -101,6 +103,11 @@ public class RepoView {
                     @Override
                     public void createBranchAt(CommitInfo commit) {
                         RepoView.this.createBranchAt(commit);
+                    }
+
+                    @Override
+                    public void createTagAt(CommitInfo commit) {
+                        RepoView.this.createTagAt(commit);
                     }
 
                     @Override
@@ -541,9 +548,75 @@ public class RepoView {
                 }));
     }
 
+    /** Crea una etiqueta en un commit (menú contextual del grafo). */
+    private void createTagAt(CommitInfo commit) {
+        Dialog<ButtonType> dialog = new Dialog<>();
+        dialog.setTitle("Nueva etiqueta");
+        dialog.setHeaderText("Crear una etiqueta en el commit " + commit.shortId());
+        dialog.getDialogPane().getButtonTypes().addAll(ButtonType.OK, ButtonType.CANCEL);
+        TextField name = new TextField();
+        name.setPromptText("v1.0.0");
+        TextField message = new TextField();
+        message.setPromptText("Mensaje (opcional, la hace anotada)");
+        GridPane grid = new GridPane();
+        grid.setHgap(8);
+        grid.setVgap(8);
+        grid.addRow(0, new Label("Nombre:"), name);
+        grid.addRow(1, new Label("Mensaje:"), message);
+        dialog.getDialogPane().setContent(grid);
+        var result = dialog.showAndWait();
+        if (result.isEmpty() || result.get() != ButtonType.OK || name.getText().isBlank()) {
+            return;
+        }
+        String tagName = name.getText().trim();
+        if (!git.isValidTagName(tagName)) {
+            new Alert(Alert.AlertType.ERROR,
+                    "Nombre de etiqueta no válido: " + tagName).showAndWait();
+            return;
+        }
+        String tagMessage = message.getText().trim();
+        runTask("Creando etiqueta " + tagName, p -> {
+            git.createTag(tagName, commit.id(), tagMessage.isEmpty() ? null : tagMessage);
+            return null;
+        }, v -> {
+            recordAction("Etiqueta: " + tagName,
+                    g -> g.deleteTag(tagName),
+                    g -> g.createTag(tagName, commit.id(),
+                            tagMessage.isEmpty() ? null : tagMessage));
+            refreshAll();
+        });
+    }
+
+    /** Elimina una etiqueta (menú contextual del panel de ramas). */
+    public void deleteTag(String name) {
+        Alert confirm = new Alert(Alert.AlertType.CONFIRMATION,
+                "¿Eliminar la etiqueta «" + name + "»? Se puede recuperar con Deshacer.");
+        confirm.setHeaderText("Eliminar etiqueta");
+        confirm.showAndWait().filter(bt -> bt == ButtonType.OK).ifPresent(bt ->
+                runTask("Eliminando etiqueta " + name, p -> {
+                    String sha = git.tagCommitSha(name);
+                    git.deleteTag(name);
+                    return sha;
+                }, sha -> {
+                    recordAction("Eliminar etiqueta: " + name,
+                            g -> g.createTag(name, sha, null),
+                            g -> g.deleteTag(name));
+                    refreshAll();
+                }));
+    }
+
+    /** Sube todas las etiquetas al remoto (menú Acciones). */
+    public void pushTags() {
+        if (git.isOpen()) {
+            runTask("Push de etiquetas…", p -> {
+                git.pushTags(credentials, p);
+                return null;
+            }, v -> refreshAll());
+        }
+    }
+
     /** Mergea una rama local en la rama actual (menú contextual del panel). */
-    public void mergeBranchInto(String branchName) {
-        runTask("Merge " + branchName, p -> {
+    public void mergeBranchInto(String branchName) {        runTask("Merge " + branchName, p -> {
             if (!git.isClean()) {
                 throw new IllegalStateException(
                         "Hay cambios sin commitear. Haz commit o stash antes del merge.");

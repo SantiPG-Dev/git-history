@@ -327,6 +327,48 @@ public class GitService implements AutoCloseable {
         return out;
     }
 
+    public boolean isValidTagName(String name) {
+        return Repository.isValidRefName(Constants.R_TAGS + name);
+    }
+
+    /**
+     * Crea una etiqueta en un commit. Si {@code message} es null o vacío es
+     * ligera; si no, anotada.
+     */
+    public void createTag(String name, String sha, String message) throws IOException, GitAPIException {
+        try (RevWalk walk = new RevWalk(repo)) {
+            RevCommit target = walk.parseCommit(ObjectId.fromString(sha));
+            var cmd = git.tag().setName(name).setObjectId(target);
+            if (message != null && !message.isBlank()) {
+                cmd.setMessage(message).setAnnotated(true);
+            }
+            cmd.call();
+        }
+    }
+
+    public void deleteTag(String name) throws GitAPIException {
+        git.tagDelete().setTags(name).call();
+    }
+
+    /** SHA del commit al que apunta una etiqueta (pelando las anotadas). */
+    public String tagCommitSha(String name) throws IOException {
+        Ref ref = repo.findRef(Constants.R_TAGS + name);
+        if (ref == null) {
+            throw new IOException("No se encontró la etiqueta: " + name);
+        }
+        Ref peeled = repo.getRefDatabase().peel(ref);
+        ObjectId id = peeled.getPeeledObjectId() != null
+                ? peeled.getPeeledObjectId() : ref.getObjectId();
+        return id.getName();
+    }
+
+    /** Sube todas las etiquetas locales al remoto por defecto. */
+    public void pushTags(CredentialsProvider credentials, BiConsumer<String, Double> progress)
+            throws GitAPIException {
+        git.push().setPushTags().setCredentialsProvider(credentials)
+                .setProgressMonitor(monitor(progress)).call();
+    }
+
     public boolean isValidBranchName(String name) {
         return Repository.isValidRefName(Constants.R_HEADS + name);
     }

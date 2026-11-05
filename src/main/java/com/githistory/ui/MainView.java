@@ -171,6 +171,13 @@ public class MainView {
                 repo.push();
             }
         });
+        MenuItem pushTags = new MenuItem("Push de etiquetas");
+        pushTags.setOnAction(e -> {
+            RepoView repo = activeRepo();
+            if (repo != null) {
+                repo.pushTags();
+            }
+        });
         MenuItem refrescar = new MenuItem("Refrescar");
         refrescar.setAccelerator(KeyCombination.keyCombination("F5"));
         refrescar.setOnAction(e -> {
@@ -180,7 +187,7 @@ public class MainView {
             }
         });
         acciones.getItems().addAll(deshacer, rehacer, new SeparatorMenuItem(),
-                fetch, pull, push, new SeparatorMenuItem(), refrescar);
+                fetch, pull, push, pushTags, new SeparatorMenuItem(), refrescar);
         acciones.setOnShowing(e -> {
             boolean noRepo = activeRepo() == null;
             deshacer.setDisable(noRepo);
@@ -188,6 +195,7 @@ public class MainView {
             fetch.setDisable(noRepo);
             pull.setDisable(noRepo);
             push.setDisable(noRepo);
+            pushTags.setDisable(noRepo);
             refrescar.setDisable(noRepo);
         });
 
