@@ -21,6 +21,7 @@ import javafx.scene.shape.Circle;
 
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
+import java.util.List;
 import java.util.stream.Collectors;
 
 /**
@@ -138,10 +139,26 @@ public class CommitDetailView {
                 : "parent: " + info.parents().stream()
                         .map(p -> p.substring(0, 7))
                         .collect(Collectors.joining(", ")));
+        loadFiles(p -> repo.git().commitDetail(info.id()));
+    }
+
+    /** Muestra el diff combinado entre dos commits (Ctrl+clic en el grafo). */
+    public void showComparison(CommitInfo older, CommitInfo newer) {
+        split.setVisible(true);
+        currentCommitId = null;
+        hashLabel.setText("comparando: " + older.shortId() + " … " + newer.shortId());
+        title.setText("Diferencias entre los dos commits seleccionados");
+        authorRow.getChildren().setAll(new Label("⇄ " + older.message()
+                + "  →  " + newer.message()));
+        parentsLabel.setText("");
+        loadFiles(p -> repo.git().diffBetween(older.id(), newer.id()));
+    }
+
+    private void loadFiles(TaskRunner.Work<List<GitService.DiffFile>> work) {
         modifiedLabel.setText("");
         fileList.getItems().clear();
         diffView.getItems().clear();
-        repo.runTask("Cargando diff", p -> repo.git().commitDetail(info.id()), files -> {
+        repo.runTask("Cargando diff", work, files -> {
             fileList.getItems().setAll(files);
             int n = files.size();
             modifiedLabel.setText(n + (n == 1 ? " archivo modificado" : " archivos modificados"));

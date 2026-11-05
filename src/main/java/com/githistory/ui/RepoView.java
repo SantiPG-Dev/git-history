@@ -7,6 +7,7 @@ import com.githistory.git.GraphRow;
 import com.githistory.git.UndoManager;
 import javafx.beans.property.IntegerProperty;
 import javafx.beans.property.SimpleIntegerProperty;
+import javafx.collections.ListChangeListener;
 import javafx.geometry.Orientation;
 import javafx.geometry.Pos;
 import javafx.scene.Node;
@@ -20,6 +21,7 @@ import javafx.scene.control.MenuButton;
 import javafx.scene.control.MenuItem;
 import javafx.scene.control.ProgressBar;
 import javafx.scene.control.RadioMenuItem;
+import javafx.scene.control.SelectionMode;
 import javafx.scene.control.Separator;
 import javafx.scene.control.SeparatorMenuItem;
 import javafx.scene.control.SplitPane;
@@ -45,6 +47,7 @@ import javafx.scene.layout.VBox;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutorService;
@@ -140,11 +143,20 @@ public class RepoView {
                         RepoView.this.copyHash(commit);
                     }
                 }));
-        historyList.getSelectionModel().selectedItemProperty().addListener((obs, o, row) -> {
-            if (row != null) {
-                detailView.showCommit(row.commit());
-            }
-        });
+        historyList.getSelectionModel().setSelectionMode(SelectionMode.MULTIPLE);
+        historyList.getSelectionModel().getSelectedItems().addListener(
+                (ListChangeListener<GraphRow>) change -> {
+                    List<GraphRow> selected = new ArrayList<>(
+                            historyList.getSelectionModel().getSelectedItems());
+                    if (selected.size() == 1) {
+                        detailView.showCommit(selected.get(0).commit());
+                    } else if (selected.size() == 2) {
+                        // allRows está ordenado de más nuevo a más antiguo.
+                        selected.sort(Comparator.comparingInt(allRows::indexOf));
+                        detailView.showComparison(selected.get(1).commit(),
+                                selected.get(0).commit());
+                    }
+                });
         VBox.setVgrow(historyList, Priority.ALWAYS);
 
         Tab commitTab = new Tab("Commit", detailView.getRoot());
