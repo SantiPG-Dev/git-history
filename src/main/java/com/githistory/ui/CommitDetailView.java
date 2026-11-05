@@ -9,6 +9,7 @@ import javafx.scene.control.Label;
 import javafx.scene.control.ListCell;
 import javafx.scene.control.ListView;
 import javafx.scene.control.SplitPane;
+import javafx.scene.image.ImageView;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.StackPane;
@@ -45,6 +46,7 @@ public class CommitDetailView {
     private final ListView<GitService.DiffFile> fileList = new ListView<>();
     private final DiffView diffView = new DiffView();
     private final SplitPane split;
+    private String currentCommitId;
 
     public CommitDetailView(RepoView repo) {
         this.repo = repo;
@@ -101,6 +103,7 @@ public class CommitDetailView {
 
     public void showCommit(CommitInfo info) {
         split.setVisible(true);
+        currentCommitId = info.id();
         hashLabel.setText("commit: " + info.shortId());
         title.setText(info.fullMessage().trim());
 
@@ -110,6 +113,19 @@ public class CommitDetailView {
         dateLabel.getStyleClass().add("detail-meta");
         VBox authorInfo = new VBox(0, authorLabel, dateLabel);
         authorRow.getChildren().setAll(avatar(info.author(), info.email()), authorInfo);
+
+        // Sustituye las iniciales por el avatar real de Gravatar si se puede
+        // descargar; si el usuario cambia de commit mientras tanto, se ignora.
+        String commitId = info.id();
+        repo.runTask("Cargando avatar", p -> AvatarService.load(info.email(), 52), image -> {
+            if (image != null && commitId.equals(currentCommitId)) {
+                ImageView view = new ImageView(image);
+                view.setFitWidth(26);
+                view.setFitHeight(26);
+                view.setClip(new Circle(13, 13, 13));
+                authorRow.getChildren().set(0, view);
+            }
+        });
 
         parentsLabel.setText(info.parents().isEmpty()
                 ? "Commit inicial (sin padres)"
