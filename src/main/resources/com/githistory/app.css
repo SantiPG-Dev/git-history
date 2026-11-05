@@ -354,3 +354,99 @@
 .dialog-pane .header-panel {
     -fx-background-color: #181825;
 }
+
+/* ── Menús ──────────────────────────────────────────────── */
+
+.menu-bar {
+    -fx-background-color: #11111b;
+}
+
+.menu-bar .label {
+    -fx-text-fill: #a6adc8;
+}
+
+.menu-bar > .container > .menu-button:hover,
+.menu-bar > .container > .menu-button:showing {
+    -fx-background-color: #313244;
+}
+
+.menu-item:focused {
+    -fx-background-color: #313244;
+}
+
+.menu-item .label {
+    -fx-text-fill: #cdd6f4;
+}
+
+.context-menu {
+    -fx-background-color: #262637;
+    -fx-border-color: #45475a;
+    -fx-border-radius: 6;
+    -fx-background-radius: 6;
+}
+
+/* ── Barra de acciones del repo ─────────────────────────── */
+
+.action-bar {
+    -fx-background-color: #181825;
+    -fx-padding: 6 10 6 10;
+}
+
+.action-bar .separator {
+    -fx-padding: 4 4 4 4;
+}
+
+.menu-button {
+    -fx-background-color: transparent;
+    -fx-border-color: #45475a;
+    -fx-border-radius: 6;
+    -fx-background-radius: 6;
+    -fx-padding: 5 12 5 12;
+    -fx-text-fill: #cdd6f4;
+}
+
+.menu-button:hover {
+    -fx-background-color: #313244;
+}
+
+.menu-button:showing {
+    -fx-background-color: #45475a;
+}
+
+.branch-menu {
+    -fx-font-weight: bold;
+}
+
+/* ── Cabecera de columnas del historial ─────────────────── */
+
+.column-header {
+    -fx-background-color: #181825;
+    -fx-padding: 4 10 4 10;
+}
+
+.column-header .label {
+    -fx-text-fill: #6c7086;
+    -fx-font-size: 10px;
+    -fx-font-weight: bold;
+}
+
+/* ── Buscador ───────────────────────────────────────────── */
+
+.search-field {
+    -fx-pref-width: 180;
+    -fx-font-size: 11px;
+}
+
+/* ── Detalle de commit ──────────────────────────────────── */
+
+.detail-hash {
+    -fx-text-fill: #6c7086;
+    -fx-font-family: "JetBrains Mono", "Fira Code", "monospace";
+    -fx-font-size: 11px;
+}
+
+.commit-author {
+    -fx-text-fill: #cdd6f4;
+    -fx-font-weight: bold;
+    -fx-font-size: 12px;
+}

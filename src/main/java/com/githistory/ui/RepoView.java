@@ -4,30 +4,48 @@ import com.githistory.git.CommitInfo;
 import com.githistory.git.GitService;
 import com.githistory.git.GraphLayout;
 import com.githistory.git.GraphRow;
+import javafx.beans.property.IntegerProperty;
+import javafx.beans.property.SimpleIntegerProperty;
+import javafx.geometry.Orientation;
 import javafx.geometry.Pos;
+import javafx.scene.Node;
 import javafx.scene.control.Alert;
+import javafx.scene.control.Button;
 import javafx.scene.control.ButtonType;
 import javafx.scene.control.Label;
 import javafx.scene.control.ListView;
+import javafx.scene.control.MenuButton;
+import javafx.scene.control.MenuItem;
 import javafx.scene.control.ProgressBar;
+import javafx.scene.control.RadioMenuItem;
+import javafx.scene.control.Separator;
+import javafx.scene.control.SeparatorMenuItem;
 import javafx.scene.control.SplitPane;
 import javafx.scene.control.Tab;
 import javafx.scene.control.TabPane;
+import javafx.scene.control.TextField;
 import javafx.scene.control.TextInputDialog;
+import javafx.scene.control.ToggleGroup;
+import javafx.scene.control.Tooltip;
 import javafx.scene.input.Clipboard;
 import javafx.scene.input.ClipboardContent;
 import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.Region;
+import javafx.scene.layout.VBox;
 
+import java.io.IOException;
 import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 
 /**
- * Vista de un repositorio abierto: grafo de historial en el centro, ramas a la
+ * Vista de un repositorio abierto: barra de acciones estilo GitKraken arriba,
+ * grafo de historial con cabecera de columnas en el centro, ramas a la
  * izquierda, detalle/staging a la derecha y barra de estado propia abajo.
  * Cada pestaña de la ventana contiene una instancia.
  */
@@ -41,15 +59,25 @@ public class RepoView {
             TaskRunner.newSerialExecutor("repo-" + COUNT.incrementAndGet());
     private final BorderPane root = new BorderPane();
     private final Label statusLabel = new Label("Listo");
-    private final Label branchLabel = new Label();
     private final ProgressBar progressBar = new ProgressBar(0);
 
     private final ListView<GraphRow> historyList;
     private final BranchPanel branchPanel;
     private final CommitDetailView detailView;
     private final StagingView stagingView;
+    private final MenuButton branchMenu = new MenuButton("(sin rama)");
+    private final TextField searchField = new TextField();
+    private final IntegerProperty laneWidth = new SimpleIntegerProperty(26);
+    private final SplitPane split;
+    private final Node branchNode;
+    private final Node centerNode;
+    private final Node rightNode;
+
     private int historyMaxLanes = 1;
     private Path repoPath;
+    private List<GraphRow> allRows = List.of();
+    private List<Integer> searchHits = List.of();
+    private int searchCursor = -1;
 
     public RepoView(CredentialsPrompt credentials) {
         this.credentials = credentials;
@@ -82,6 +110,7 @@ public class RepoView {
                 detailView.showCommit(row.commit());
             }
         });
+        VBox.setVgrow(historyList, Priority.ALWAYS);
 
         Tab commitTab = new Tab("Commit", detailView.getRoot());
         Tab changesTab = new Tab("Cambios", stagingView.getRoot());
@@ -90,11 +119,28 @@ public class RepoView {
         TabPane rightTabs = new TabPane(commitTab, changesTab);
         rightTabs.setMinWidth(340);
 
-        SplitPane split = new SplitPane(branchPanel.getRoot(), historyList, rightTabs);
+        branchNode = branchPanel.getRoot();
+        centerNode = new VBox(buildColumnHeader(), historyList);
+        rightNode = rightTabs;
+        split = new SplitPane(branchNode, centerNode, rightNode);
         split.setDividerPositions(0.16, 0.58);
 
+        root.setTop(buildActionBar());
         root.setCenter(split);
         root.setBottom(buildStatusBar());
+    }
+
+    /** Muestra u oculta los paneles laterales (menú Ver). */
+    public void setPanelsVisible(boolean showBranches, boolean showDetail) {
+        var items = split.getItems();
+        items.clear();
+        if (showBranches) {
+            items.add(branchNode);
+        }
+        items.add(centerNode);
+        if (showDetail) {
+            items.add(rightNode);
+        }
     }
 
     public BorderPane getRoot() {
@@ -132,16 +178,17 @@ public class RepoView {
         if (!git.isOpen()) {
             return;
         }
-        runTask("Actualizando", p -> git.currentBranch(),
-                branch -> branchLabel.setText("⎇ " + branch));
+        runTask("Actualizando ramas", p -> git.branches(false), this::updateBranchMenu);
         runTask("Cargando historial",
                 p -> GraphLayout.layout(git.loadHistory(2000)),
                 graph -> {
                     historyMaxLanes = graph.maxLanes();
-                    historyList.getItems().setAll(graph.rows());
+                    laneWidth.set(historyMaxLanes * (int) HistoryCell.LANE_WIDTH + 10);
+                    allRows = graph.rows();
+                    historyList.getItems().setAll(allRows);
                     historyList.refresh();
                     if (historyList.getSelectionModel().getSelectedItem() == null
-                            && !graph.rows().isEmpty()) {
+                            && !allRows.isEmpty()) {
                         historyList.getSelectionModel().select(0);
                     }
                 });
@@ -176,17 +223,223 @@ public class RepoView {
         }
     }
 
+    // ── Barra de acciones ────────────────────────────────────────────────
+
+    private Node buildActionBar() {
+        branchMenu.getStyleClass().add("branch-menu");
+
+        Button undo = new Button("Deshacer");
+        undo.setDisable(true);
+        undo.setTooltip(new Tooltip("Deshacer la última acción (próximamente)"));
+        Button redo = new Button("Rehacer");
+        redo.setDisable(true);
+        redo.setTooltip(new Tooltip("Rehacer (próximamente)"));
+
+        Button pull = new Button("Pull");
+        pull.setOnAction(e -> pull());
+        Button push = new Button("Push");
+        push.setOnAction(e -> push());
+
+        Button branch = new Button("Rama");
+        branch.setTooltip(new Tooltip("Crear una rama nueva desde HEAD"));
+        branch.setOnAction(e -> createBranch());
+        Button stash = new Button("Stash");
+        stash.setTooltip(new Tooltip("Guardar los cambios actuales en el stash"));
+        stash.setOnAction(e -> stash());
+        Button pop = new Button("Pop");
+        pop.setTooltip(new Tooltip("Aplicar y eliminar el último stash"));
+        pop.setOnAction(e -> stashPop());
+
+        Button terminal = new Button("Terminal");
+        terminal.setTooltip(new Tooltip("Abrir una terminal en este repositorio"));
+        terminal.setOnAction(e -> openTerminal());
+
+        searchField.setPromptText("Buscar commits…");
+        searchField.getStyleClass().add("search-field");
+        searchField.textProperty().addListener((obs, o, q) -> applySearch(q));
+        searchField.setOnAction(e -> nextSearchHit());
+
+        Region spacer = new Region();
+        HBox.setHgrow(spacer, Priority.ALWAYS);
+
+        HBox bar = new HBox(6, branchMenu,
+                new Separator(Orientation.VERTICAL), undo, redo,
+                new Separator(Orientation.VERTICAL), pull, push,
+                new Separator(Orientation.VERTICAL), branch, stash, pop,
+                new Separator(Orientation.VERTICAL), terminal,
+                spacer, searchField);
+        bar.setAlignment(Pos.CENTER_LEFT);
+        bar.getStyleClass().add("action-bar");
+        return bar;
+    }
+
+    private Node buildColumnHeader() {
+        Label graphHeader = new Label("GRAFO");
+        graphHeader.prefWidthProperty().bind(laneWidth);
+        Label refsHeader = new Label("RAMA / TAG");
+        refsHeader.setPrefWidth(190);
+        Label messageHeader = new Label("MENSAJE DEL COMMIT");
+        HBox header = new HBox(8, graphHeader, refsHeader, messageHeader);
+        header.setAlignment(Pos.CENTER_LEFT);
+        header.getStyleClass().add("column-header");
+        return header;
+    }
+
+    private void updateBranchMenu(List<GitService.BranchInfo> branches) {
+        String current = branches.stream()
+                .filter(GitService.BranchInfo::current)
+                .map(GitService.BranchInfo::shortName)
+                .findFirst()
+                .orElse("HEAD separado");
+        branchMenu.setText("⎇ " + current);
+        ToggleGroup group = new ToggleGroup();
+        branchMenu.getItems().clear();
+        for (GitService.BranchInfo b : branches) {
+            RadioMenuItem item = new RadioMenuItem(b.shortName());
+            item.setToggleGroup(group);
+            item.setSelected(b.current());
+            item.setOnAction(e -> {
+                if (!b.current()) {
+                    checkoutBranch(b.shortName());
+                }
+            });
+            branchMenu.getItems().add(item);
+        }
+        branchMenu.getItems().add(new SeparatorMenuItem());
+        MenuItem create = new MenuItem("Nueva rama…");
+        create.setOnAction(e -> createBranch());
+        branchMenu.getItems().add(create);
+    }
+
+    // ── Búsqueda de commits ──────────────────────────────────────────────
+
+    private void applySearch(String query) {
+        searchHits = new ArrayList<>();
+        searchCursor = -1;
+        if (query == null || query.isBlank()) {
+            statusLabel.setText("Listo");
+            return;
+        }
+        String q = query.toLowerCase();
+        for (int i = 0; i < allRows.size(); i++) {
+            CommitInfo c = allRows.get(i).commit();
+            if (c.message().toLowerCase().contains(q)
+                    || c.author().toLowerCase().contains(q)
+                    || c.id().startsWith(q)) {
+                searchHits.add(i);
+            }
+        }
+        if (searchHits.isEmpty()) {
+            statusLabel.setText("Sin coincidencias para «" + query + "»");
+        } else {
+            jumpToHit(0);
+        }
+    }
+
+    private void nextSearchHit() {
+        if (!searchHits.isEmpty()) {
+            jumpToHit((searchCursor + 1) % searchHits.size());
+        }
+    }
+
+    private void jumpToHit(int cursor) {
+        searchCursor = cursor;
+        int index = searchHits.get(cursor);
+        historyList.getSelectionModel().select(index);
+        historyList.scrollTo(Math.max(0, index - 5));
+        statusLabel.setText("Coincidencia " + (cursor + 1) + " de " + searchHits.size());
+    }
+
+    // ── Acciones ─────────────────────────────────────────────────────────
+
+    private void checkoutBranch(String name) {
+        runTask("Checkout " + name, p -> {
+            git.checkout(name);
+            return null;
+        }, v -> refreshAll());
+    }
+
+    private void createBranch() {
+        TextInputDialog dialog = new TextInputDialog();
+        dialog.setTitle("Nueva rama");
+        dialog.setHeaderText("Crear una rama nueva desde HEAD y cambiar a ella");
+        dialog.setContentText("Nombre:");
+        dialog.showAndWait().map(String::trim).filter(n -> !n.isEmpty()).ifPresent(name -> {
+            if (!git.isValidBranchName(name)) {
+                new Alert(Alert.AlertType.ERROR,
+                        "Nombre de rama no válido: " + name).showAndWait();
+                return;
+            }
+            runTask("Creando rama " + name, p -> {
+                git.createBranch(name, true);
+                return null;
+            }, v -> refreshAll());
+        });
+    }
+
+    private void stash() {
+        runTask("Creando stash", p -> git.stashCreate(null), created -> {
+            if (!created) {
+                new Alert(Alert.AlertType.INFORMATION,
+                        "No hay cambios para guardar en el stash.").showAndWait();
+            }
+            refreshAll();
+        });
+    }
+
+    private void stashPop() {
+        runTask("Pop de stash", p -> {
+            if (git.stashList().isEmpty()) {
+                return false;
+            }
+            git.stashPop(0);
+            return true;
+        }, popped -> {
+            if (!popped) {
+                new Alert(Alert.AlertType.INFORMATION,
+                        "No hay entradas en el stash.").showAndWait();
+            }
+            refreshAll();
+        });
+    }
+
+    private void openTerminal() {
+        if (repoPath == null) {
+            return;
+        }
+        String dir = repoPath.toString();
+        String[][] candidates = {
+                {"konsole", "--workdir", dir},
+                {"kgx", "--working-directory", dir},
+                {"gnome-terminal", "--working-directory", dir},
+                {"alacritty", "--working-directory", dir},
+                {"xterm"}
+        };
+        for (String[] cmd : candidates) {
+            try {
+                new ProcessBuilder(cmd).directory(repoPath.toFile()).start();
+                return;
+            } catch (IOException ignored) {
+                // Probar con el siguiente emulador.
+            }
+        }
+        statusLabel.setText("No se encontró un emulador de terminal");
+    }
+
+    // ── Barra de estado ──────────────────────────────────────────────────
+
     private HBox buildStatusBar() {
         progressBar.setVisible(false);
         progressBar.setPrefWidth(220);
-        branchLabel.getStyleClass().add("branch-label");
         Region spacer = new Region();
         HBox.setHgrow(spacer, Priority.ALWAYS);
-        HBox bar = new HBox(10, branchLabel, statusLabel, spacer, progressBar);
+        HBox bar = new HBox(10, statusLabel, spacer, progressBar);
         bar.setAlignment(Pos.CENTER_LEFT);
         bar.getStyleClass().add("status-bar");
         return bar;
     }
+
+    // ── Acciones del menú contextual de commits ──────────────────────────
 
     private void createBranchAt(CommitInfo commit) {
         TextInputDialog dialog = new TextInputDialog();

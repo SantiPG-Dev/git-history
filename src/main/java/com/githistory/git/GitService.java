@@ -310,6 +310,39 @@ public class GitService implements AutoCloseable {
         git.branchDelete().setBranchNames(shortName).setForce(true).call();
     }
 
+    public record StashEntry(int index, String message) {}
+
+    public List<StashEntry> stashList() throws GitAPIException {
+        List<StashEntry> out = new ArrayList<>();
+        int i = 0;
+        for (RevCommit c : git.stashList().call()) {
+            out.add(new StashEntry(i++, c.getShortMessage()));
+        }
+        return out;
+    }
+
+    /** @return false si no había cambios que guardar. */
+    public boolean stashCreate(String message) throws GitAPIException {
+        var cmd = git.stashCreate();
+        if (message != null && !message.isBlank()) {
+            cmd.setWorkingDirectoryMessage(message);
+        }
+        return cmd.call() != null;
+    }
+
+    public void stashApply(int index) throws GitAPIException {
+        git.stashApply().setStashRef("stash@{" + index + "}").call();
+    }
+
+    public void stashPop(int index) throws GitAPIException {
+        stashApply(index);
+        git.stashDrop().setStashRef(index).call();
+    }
+
+    public void stashDrop(int index) throws GitAPIException {
+        git.stashDrop().setStashRef(index).call();
+    }
+
     public void fetch(CredentialsProvider credentials, BiConsumer<String, Double> progress) throws GitAPIException {
         git.fetch().setCredentialsProvider(credentials).setProgressMonitor(monitor(progress)).call();
     }

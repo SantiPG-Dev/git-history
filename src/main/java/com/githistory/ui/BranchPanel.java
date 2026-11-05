@@ -1,22 +1,27 @@
 package com.githistory.ui;
 
 import com.githistory.git.GitService;
+import javafx.geometry.Insets;
 import javafx.scene.control.Alert;
 import javafx.scene.control.ButtonType;
 import javafx.scene.control.ContextMenu;
 import javafx.scene.control.MenuItem;
 import javafx.scene.control.SeparatorMenuItem;
+import javafx.scene.control.TextField;
 import javafx.scene.control.TextInputDialog;
 import javafx.scene.control.TreeCell;
 import javafx.scene.control.TreeItem;
 import javafx.scene.control.TreeView;
+import javafx.scene.layout.Priority;
+import javafx.scene.layout.VBox;
 
 import java.util.List;
 
 /**
- * Panel lateral con ramas locales, ramas remotas y etiquetas.
- * Doble clic en una rama local hace checkout; el menú contextual ofrece
- * crear, eliminar y hacer checkout de ramas.
+ * Panel lateral con secciones LOCAL, REMOTO, ETIQUETAS y STASH (con
+ * contadores), más un filtro por nombre. Doble clic en una rama local hace
+ * checkout; el menú contextual ofrece crear, eliminar, checkout y acciones
+ * de stash (aplicar, pop, eliminar).
  */
 public class BranchPanel {
 
@@ -24,41 +29,77 @@ public class BranchPanel {
 
     private record BranchData(List<GitService.BranchInfo> locals,
                               List<GitService.BranchInfo> remotes,
-                              List<String> tags) {}
+                              List<String> tags,
+                              List<GitService.StashEntry> stashes) {}
 
     private final RepoView repo;
+    private final VBox root = new VBox(4);
+    private final TextField filterField = new TextField();
     private final TreeView<Object> tree = new TreeView<>();
+    private BranchData lastData;
 
     public BranchPanel(RepoView repo) {
         this.repo = repo;
+        root.setPadding(new Insets(4, 0, 0, 0));
+        filterField.setPromptText("Filtrar…");
+        filterField.getStyleClass().add("search-field");
+        filterField.textProperty().addListener((obs, o, q) -> rebuild());
+        VBox.setMargin(filterField, new Insets(2, 6, 2, 6));
         tree.setShowRoot(false);
         tree.setCellFactory(tv -> new BranchCell());
+        VBox.setVgrow(tree, Priority.ALWAYS);
+        root.getChildren().addAll(filterField, tree);
     }
 
-    public TreeView<Object> getRoot() {
-        return tree;
+    public VBox getRoot() {
+        return root;
     }
 
     public void refresh() {
         if (!repo.git().isOpen()) {
             tree.setRoot(null);
+            lastData = null;
             return;
         }
         repo.runTask("Actualizando ramas", p -> new BranchData(
                 repo.git().branches(false),
                 repo.git().branches(true),
-                repo.git().tags()), data -> {
-            TreeItem<Object> root = new TreeItem<>();
-            TreeItem<Object> locals = new TreeItem<>("Ramas locales");
-            data.locals().forEach(b -> locals.getChildren().add(new TreeItem<>(b)));
-            TreeItem<Object> remotes = new TreeItem<>("Ramas remotas");
-            data.remotes().forEach(b -> remotes.getChildren().add(new TreeItem<>(b)));
-            TreeItem<Object> tags = new TreeItem<>("Etiquetas");
-            data.tags().forEach(t -> tags.getChildren().add(new TreeItem<>(new TagInfo(t))));
-            locals.setExpanded(true);
-            root.getChildren().addAll(locals, remotes, tags);
-            tree.setRoot(root);
+                repo.git().tags(),
+                repo.git().stashList()), data -> {
+            lastData = data;
+            rebuild();
         });
+    }
+
+    private void rebuild() {
+        if (lastData == null) {
+            tree.setRoot(null);
+            return;
+        }
+        String filter = filterField.getText() == null
+                ? "" : filterField.getText().trim().toLowerCase();
+        TreeItem<Object> rootItem = new TreeItem<>();
+        TreeItem<Object> locals = section("LOCAL",
+                lastData.locals().stream().filter(b -> matches(b.shortName(), filter)).toList());
+        TreeItem<Object> remotes = section("REMOTO",
+                lastData.remotes().stream().filter(b -> matches(b.shortName(), filter)).toList());
+        TreeItem<Object> tags = section("ETIQUETAS",
+                lastData.tags().stream().filter(t -> matches(t, filter)).map(TagInfo::new).toList());
+        TreeItem<Object> stashes = section("STASH", lastData.stashes());
+        locals.setExpanded(true);
+        remotes.setExpanded(true);
+        rootItem.getChildren().addAll(locals, remotes, tags, stashes);
+        tree.setRoot(rootItem);
+    }
+
+    private static boolean matches(String name, String filter) {
+        return filter.isEmpty() || name.toLowerCase().contains(filter);
+    }
+
+    private static TreeItem<Object> section(String title, List<?> items) {
+        TreeItem<Object> section = new TreeItem<>(title + " (" + items.size() + ")");
+        items.forEach(item -> section.getChildren().add(new TreeItem<>(item)));
+        return section;
     }
 
     private void checkout(String name) {
@@ -107,7 +148,29 @@ public class BranchPanel {
                 }, v -> repo.refreshAll()));
     }
 
-    private ContextMenu menuFor(GitService.BranchInfo branch) {
+    private void stashApply(GitService.StashEntry entry, boolean pop) {
+        repo.runTask((pop ? "Pop" : "Aplicar") + " stash@{" + entry.index() + "}", p -> {
+            if (pop) {
+                repo.git().stashPop(entry.index());
+            } else {
+                repo.git().stashApply(entry.index());
+            }
+            return null;
+        }, v -> repo.refreshAll());
+    }
+
+    private void stashDrop(GitService.StashEntry entry) {
+        Alert confirm = new Alert(Alert.AlertType.CONFIRMATION,
+                "¿Eliminar stash@{" + entry.index() + "} («" + entry.message() + "»)?");
+        confirm.setHeaderText("Eliminar stash");
+        confirm.showAndWait().filter(bt -> bt == ButtonType.OK).ifPresent(bt ->
+                repo.runTask("Eliminando stash", p -> {
+                    repo.git().stashDrop(entry.index());
+                    return null;
+                }, v -> repo.refreshAll()));
+    }
+
+    private ContextMenu menuForBranch(GitService.BranchInfo branch) {
         ContextMenu menu = new ContextMenu();
         if (branch.remote()) {
             MenuItem checkout = new MenuItem("Checkout (nueva rama local)");
@@ -125,12 +188,23 @@ public class BranchPanel {
         return menu;
     }
 
+    private ContextMenu menuForStash(GitService.StashEntry entry) {
+        MenuItem apply = new MenuItem("Aplicar");
+        apply.setOnAction(e -> stashApply(entry, false));
+        MenuItem pop = new MenuItem("Pop");
+        pop.setOnAction(e -> stashApply(entry, true));
+        MenuItem drop = new MenuItem("Eliminar");
+        drop.setOnAction(e -> stashDrop(entry));
+        return new ContextMenu(apply, pop, new SeparatorMenuItem(), drop);
+    }
+
     private class BranchCell extends TreeCell<Object> {
         @Override
         protected void updateItem(Object item, boolean empty) {
             super.updateItem(item, empty);
             setContextMenu(null);
             setOnMouseClicked(null);
+            getStyleClass().removeAll("branch-header", "branch-tag");
             if (empty || item == null) {
                 setText(null);
                 return;
@@ -141,9 +215,12 @@ public class BranchPanel {
             } else if (item instanceof TagInfo tag) {
                 setText(tag.name());
                 getStyleClass().add("branch-tag");
+            } else if (item instanceof GitService.StashEntry stash) {
+                setText("stash@{" + stash.index() + "} — " + stash.message());
+                setContextMenu(menuForStash(stash));
             } else if (item instanceof GitService.BranchInfo branch) {
                 setText(branch.shortName() + (branch.current() ? " ✓" : ""));
-                setContextMenu(menuFor(branch));
+                setContextMenu(menuForBranch(branch));
                 setOnMouseClicked(e -> {
                     if (e.getClickCount() == 2 && !branch.remote()) {
                         checkout(branch.shortName());
