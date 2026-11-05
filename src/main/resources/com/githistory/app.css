@@ -450,3 +450,40 @@
     -fx-font-weight: bold;
     -fx-font-size: 12px;
 }
+
+/* ── Paleta de comandos (Ctrl+K) ────────────────────────── */
+
+.command-palette {
+    -fx-background-color: #1e1e2e;
+}
+
+.command-palette-box {
+    -fx-padding: 10;
+    -fx-pref-width: 480;
+}
+
+.command-palette-box .search-field {
+    -fx-pref-width: 9999;
+    -fx-font-size: 13px;
+}
+
+.command-palette-box .list-view {
+    -fx-background-color: #181825;
+    -fx-border-color: #313244;
+    -fx-border-radius: 6;
+    -fx-background-radius: 6;
+}
+
+.command-palette-box .list-cell {
+    -fx-padding: 7 12 7 12;
+    -fx-font-size: 12px;
+}
+
+.command-palette-box .list-cell:filled:selected {
+    -fx-background-color: #313244;
+}
+
+.command-palette-box > .label {
+    -fx-text-fill: #6c7086;
+    -fx-font-size: 10px;
+}

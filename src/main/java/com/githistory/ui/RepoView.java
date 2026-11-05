@@ -86,6 +86,7 @@ public class RepoView {
     private int historyMaxLanes = 1;
     private Path repoPath;
     private List<GraphRow> allRows = List.of();
+    private List<GitService.BranchInfo> lastBranches = List.of();
     private List<Integer> searchHits = List.of();
     private int searchCursor = -1;
 
@@ -197,6 +198,11 @@ public class RepoView {
 
     public Path getRepoPath() {
         return repoPath;
+    }
+
+    /** Ramas locales conocidas (caché del último refresco, para la paleta). */
+    public List<GitService.BranchInfo> knownBranches() {
+        return lastBranches;
     }
 
     public void close() {
@@ -333,6 +339,7 @@ public class RepoView {
     }
 
     private void updateBranchMenu(List<GitService.BranchInfo> branches) {
+        lastBranches = branches;
         String current = branches.stream()
                 .filter(GitService.BranchInfo::current)
                 .map(GitService.BranchInfo::shortName)
@@ -643,7 +650,7 @@ public class RepoView {
 
     // ── Acciones ─────────────────────────────────────────────────────────
 
-    private void checkoutBranch(String name) {
+    public void checkoutBranch(String name) {
         runTask("Checkout " + name, p -> {
             String previousRef = git.headRef();
             git.checkout(name);
@@ -654,7 +661,7 @@ public class RepoView {
         });
     }
 
-    private void createBranch() {
+    public void createBranch() {
         TextInputDialog dialog = new TextInputDialog();
         dialog.setTitle("Nueva rama");
         dialog.setHeaderText("Crear una rama nueva desde HEAD y cambiar a ella");
@@ -677,7 +684,7 @@ public class RepoView {
         });
     }
 
-    private void stash() {
+    public void stash() {
         runTask("Creando stash", p -> git.stashCreate(null), created -> {
             if (!created) {
                 new Alert(Alert.AlertType.INFORMATION,
@@ -687,7 +694,7 @@ public class RepoView {
         });
     }
 
-    private void stashPop() {
+    public void stashPop() {
         runTask("Pop de stash", p -> {
             if (git.stashList().isEmpty()) {
                 return false;
@@ -703,7 +710,7 @@ public class RepoView {
         });
     }
 
-    private void openTerminal() {
+    public void openTerminal() {
         if (repoPath == null) {
             return;
         }

@@ -15,7 +15,10 @@ import javafx.scene.control.ProgressBar;
 import javafx.scene.control.SeparatorMenuItem;
 import javafx.scene.control.Tab;
 import javafx.scene.control.TabPane;
+import javafx.scene.input.KeyCode;
+import javafx.scene.input.KeyCodeCombination;
 import javafx.scene.input.KeyCombination;
+import javafx.scene.input.KeyEvent;
 import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
@@ -26,6 +29,8 @@ import javafx.stage.Stage;
 
 import java.io.File;
 import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.function.Consumer;
 
 /**
@@ -63,6 +68,13 @@ public class MainView {
 
         root.setTop(buildMenuBar());
         root.setCenter(repoTabs);
+
+        root.addEventFilter(KeyEvent.KEY_PRESSED, e -> {
+            if (new KeyCodeCombination(KeyCode.K, KeyCombination.SHORTCUT_DOWN).match(e)) {
+                showCommandPalette();
+                e.consume();
+            }
+        });
 
         progressBar.setVisible(false);
         progressBar.setPrefWidth(220);
@@ -112,6 +124,35 @@ public class MainView {
     private RepoView activeRepo() {
         Tab tab = repoTabs.getSelectionModel().getSelectedItem();
         return tab != null && tab.getUserData() instanceof RepoView view ? view : null;
+    }
+
+    private void showCommandPalette() {
+        List<CommandPalette.Command> commands = new ArrayList<>();
+        commands.add(new CommandPalette.Command("Abrir repositorio…", this::openRepoDialog));
+        commands.add(new CommandPalette.Command("Clonar repositorio…", this::cloneRepo));
+        commands.add(new CommandPalette.Command("Cerrar pestaña", this::closeActiveTab));
+        RepoView repo = activeRepo();
+        if (repo != null) {
+            commands.add(new CommandPalette.Command("Fetch", repo::fetch));
+            commands.add(new CommandPalette.Command("Pull", repo::pull));
+            commands.add(new CommandPalette.Command("Push", repo::push));
+            commands.add(new CommandPalette.Command("Push de etiquetas", repo::pushTags));
+            commands.add(new CommandPalette.Command("Refrescar", repo::refreshAll));
+            commands.add(new CommandPalette.Command("Deshacer", repo::undoLast));
+            commands.add(new CommandPalette.Command("Rehacer", repo::redoLast));
+            commands.add(new CommandPalette.Command("Nueva rama…", repo::createBranch));
+            commands.add(new CommandPalette.Command("Guardar cambios en stash", repo::stash));
+            commands.add(new CommandPalette.Command("Pop de stash", repo::stashPop));
+            commands.add(new CommandPalette.Command("Abrir terminal", repo::openTerminal));
+            for (GitService.BranchInfo b : repo.knownBranches()) {
+                if (!b.current()) {
+                    commands.add(new CommandPalette.Command(
+                            "Cambiar a rama: " + b.shortName(),
+                            () -> repo.checkoutBranch(b.shortName())));
+                }
+            }
+        }
+        CommandPalette.show(stage, commands);
     }
 
     private MenuBar buildMenuBar() {
@@ -200,13 +241,16 @@ public class MainView {
         });
 
         Menu ver = new Menu("Ver");
+        MenuItem paleta = new MenuItem("Paleta de comandos…");
+        paleta.setAccelerator(KeyCombination.keyCombination("Ctrl+K"));
+        paleta.setOnAction(e -> showCommandPalette());
         CheckMenuItem panelRamas = new CheckMenuItem("Panel de ramas");
         panelRamas.setSelected(true);
         CheckMenuItem panelDerecho = new CheckMenuItem("Panel de detalle");
         panelDerecho.setSelected(true);
         panelRamas.setOnAction(e -> togglePanels(panelRamas.isSelected(), panelDerecho.isSelected()));
         panelDerecho.setOnAction(e -> togglePanels(panelRamas.isSelected(), panelDerecho.isSelected()));
-        ver.getItems().addAll(panelRamas, panelDerecho);
+        ver.getItems().addAll(paleta, new SeparatorMenuItem(), panelRamas, panelDerecho);
         ver.setOnShowing(e -> {
             boolean noRepo = activeRepo() == null;
             panelRamas.setDisable(noRepo);
