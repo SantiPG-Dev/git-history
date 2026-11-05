@@ -539,8 +539,8 @@ public class RepoView {
         return first.length() > 40 ? first.substring(0, 40) + "…" : first;
     }
 
-    private void recordAction(String label, UndoManager.GitAction undo,
-                              UndoManager.GitAction redo) {
+    void recordAction(String label, UndoManager.GitAction undo,
+                      UndoManager.GitAction redo) {
         undoManager.push(new UndoManager.Action(label, undo, redo));
         updateUndoButtons();
     }
