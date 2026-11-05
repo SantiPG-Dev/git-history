@@ -4,6 +4,7 @@ import com.githistory.git.CommitInfo;
 import com.githistory.git.GitService;
 import com.githistory.git.GraphLayout;
 import com.githistory.git.GraphRow;
+import com.githistory.git.UndoManager;
 import javafx.beans.property.IntegerProperty;
 import javafx.beans.property.SimpleIntegerProperty;
 import javafx.geometry.Orientation;
@@ -29,6 +30,10 @@ import javafx.scene.control.ToggleGroup;
 import javafx.scene.control.Tooltip;
 import javafx.scene.input.Clipboard;
 import javafx.scene.input.ClipboardContent;
+import javafx.scene.input.KeyCode;
+import javafx.scene.input.KeyCodeCombination;
+import javafx.scene.input.KeyCombination;
+import javafx.scene.input.KeyEvent;
 import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
@@ -55,11 +60,14 @@ public class RepoView {
 
     private final CredentialsPrompt credentials;
     private final GitService git = new GitService();
+    private final UndoManager undoManager = new UndoManager();
     private final ExecutorService executor =
             TaskRunner.newSerialExecutor("repo-" + COUNT.incrementAndGet());
     private final BorderPane root = new BorderPane();
     private final Label statusLabel = new Label("Listo");
     private final ProgressBar progressBar = new ProgressBar(0);
+    private final Button undoButton = new Button("Deshacer");
+    private final Button redoButton = new Button("Rehacer");
 
     private final ListView<GraphRow> historyList;
     private final BranchPanel branchPanel;
@@ -128,6 +136,20 @@ public class RepoView {
         root.setTop(buildActionBar());
         root.setCenter(split);
         root.setBottom(buildStatusBar());
+
+        root.addEventFilter(KeyEvent.KEY_PRESSED, e -> {
+            if (new KeyCodeCombination(KeyCode.Z, KeyCombination.SHORTCUT_DOWN,
+                    KeyCombination.SHIFT_DOWN).match(e)
+                    || new KeyCodeCombination(KeyCode.Y,
+                    KeyCombination.SHORTCUT_DOWN).match(e)) {
+                redoLast();
+                e.consume();
+            } else if (new KeyCodeCombination(KeyCode.Z,
+                    KeyCombination.SHORTCUT_DOWN).match(e)) {
+                undoLast();
+                e.consume();
+            }
+        });
     }
 
     /** Muestra u oculta los paneles laterales (menú Ver). */
@@ -170,6 +192,8 @@ public class RepoView {
             return null;
         }, v -> {
             repoPath = dir;
+            undoManager.clear();
+            updateUndoButtons();
             refreshAll();
         }, e -> onFailure.run());
     }
@@ -228,12 +252,13 @@ public class RepoView {
     private Node buildActionBar() {
         branchMenu.getStyleClass().add("branch-menu");
 
-        Button undo = new Button("Deshacer");
-        undo.setDisable(true);
-        undo.setTooltip(new Tooltip("Deshacer la última acción (próximamente)"));
-        Button redo = new Button("Rehacer");
-        redo.setDisable(true);
-        redo.setTooltip(new Tooltip("Rehacer (próximamente)"));
+        Button undo = undoButton;
+        undo.setTooltip(new Tooltip("Deshacer la última acción"));
+        undo.setOnAction(e -> undoLast());
+        Button redo = redoButton;
+        redo.setTooltip(new Tooltip("Rehacer la última acción deshecha"));
+        redo.setOnAction(e -> redoLast());
+        updateUndoButtons();
 
         Button pull = new Button("Pull");
         pull.setOnAction(e -> pull());
@@ -350,13 +375,103 @@ public class RepoView {
         statusLabel.setText("Coincidencia " + (cursor + 1) + " de " + searchHits.size());
     }
 
+    // ── Deshacer / Rehacer ───────────────────────────────────────────────
+
+    /** Registra un commit recién creado como acción deshacible. */
+    public void recordCommit(String message, String preSha) {
+        if (preSha == null) {
+            // Primer commit del repo: no hay padre al que volver con reset.
+            return;
+        }
+        undoManager.push(new UndoManager.Action("Commit: " + abbrev(message),
+                g -> g.resetSoft(preSha),
+                g -> g.commit(message)));
+        updateUndoButtons();
+    }
+
+    private void recordCheckout(String target, String previousRef) {
+        if (previousRef == null) {
+            return;
+        }
+        undoManager.push(new UndoManager.Action("Checkout: " + target,
+                g -> g.checkout(previousRef),
+                g -> g.checkout(target)));
+        updateUndoButtons();
+    }
+
+    private void recordCreateBranch(String name, String sha, String previousRef) {
+        if (sha == null || previousRef == null) {
+            return;
+        }
+        undoManager.push(new UndoManager.Action("Rama: " + name,
+                g -> {
+                    g.checkout(previousRef);
+                    g.deleteBranch(name);
+                },
+                g -> {
+                    g.createBranchAt(name, sha);
+                    g.checkout(name);
+                }));
+        updateUndoButtons();
+    }
+
+    private void updateUndoButtons() {
+        undoButton.setDisable(!undoManager.canUndo());
+        redoButton.setDisable(!undoManager.canRedo());
+        String undoLabel = undoManager.undoLabel();
+        String redoLabel = undoManager.redoLabel();
+        undoButton.setTooltip(new Tooltip(undoLabel == null
+                ? "Nada que deshacer" : "Deshacer: " + undoLabel + " (Ctrl+Z)"));
+        redoButton.setTooltip(new Tooltip(redoLabel == null
+                ? "Nada que rehacer" : "Rehacer: " + redoLabel + " (Ctrl+Y)"));
+    }
+
+    private void undoLast() {
+        UndoManager.Action action = undoManager.peekUndo();
+        if (action == null) {
+            return;
+        }
+        runTask("Deshacer: " + action.label(), p -> {
+            action.undo().run(git);
+            return null;
+        }, v -> {
+            undoManager.confirmUndo();
+            updateUndoButtons();
+            refreshAll();
+        });
+    }
+
+    private void redoLast() {
+        UndoManager.Action action = undoManager.peekRedo();
+        if (action == null) {
+            return;
+        }
+        runTask("Rehacer: " + action.label(), p -> {
+            action.redo().run(git);
+            return null;
+        }, v -> {
+            undoManager.confirmRedo();
+            updateUndoButtons();
+            refreshAll();
+        });
+    }
+
+    private static String abbrev(String message) {
+        String first = message.lines().findFirst().orElse(message);
+        return first.length() > 40 ? first.substring(0, 40) + "…" : first;
+    }
+
     // ── Acciones ─────────────────────────────────────────────────────────
 
     private void checkoutBranch(String name) {
         runTask("Checkout " + name, p -> {
+            String previousRef = git.headRef();
             git.checkout(name);
-            return null;
-        }, v -> refreshAll());
+            return previousRef;
+        }, previousRef -> {
+            recordCheckout(name, previousRef);
+            refreshAll();
+        });
     }
 
     private void createBranch() {
@@ -371,9 +486,14 @@ public class RepoView {
                 return;
             }
             runTask("Creando rama " + name, p -> {
+                String previousRef = git.headRef();
+                String sha = git.headSha();
                 git.createBranch(name, true);
-                return null;
-            }, v -> refreshAll());
+                return new String[]{previousRef, sha};
+            }, ctx -> {
+                recordCreateBranch(name, ctx[1], ctx[0]);
+                refreshAll();
+            });
         });
     }
 
@@ -455,7 +575,13 @@ public class RepoView {
             runTask("Creando rama " + name, p -> {
                 git.createBranchAt(name, commit.id());
                 return null;
-            }, v -> refreshAll());
+            }, v -> {
+                undoManager.push(new UndoManager.Action("Rama: " + name,
+                        g -> g.deleteBranch(name),
+                        g -> g.createBranchAt(name, commit.id())));
+                updateUndoButtons();
+                refreshAll();
+            });
         });
     }
 
@@ -465,9 +591,13 @@ public class RepoView {
         confirm.setHeaderText("Checkout de commit");
         confirm.showAndWait().filter(bt -> bt == ButtonType.OK).ifPresent(bt ->
                 runTask("Checkout " + commit.shortId(), p -> {
+                    String previousRef = git.headRef();
                     git.checkout(commit.id());
-                    return null;
-                }, v -> refreshAll()));
+                    return previousRef;
+                }, previousRef -> {
+                    recordCheckout(commit.shortId(), previousRef);
+                    refreshAll();
+                }));
     }
 
     private void copyHash(CommitInfo commit) {
