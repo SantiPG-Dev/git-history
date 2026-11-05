@@ -4,6 +4,7 @@ import org.eclipse.jgit.api.CreateBranchCommand;
 import org.eclipse.jgit.api.DiffCommand;
 import org.eclipse.jgit.api.Git;
 import org.eclipse.jgit.api.ListBranchCommand;
+import org.eclipse.jgit.api.RebaseCommand;
 import org.eclipse.jgit.api.ResetCommand;
 import org.eclipse.jgit.api.Status;
 import org.eclipse.jgit.api.errors.GitAPIException;
@@ -269,16 +270,47 @@ public class GitService implements AutoCloseable {
                 || repo.findRef(Constants.REVERT_HEAD) != null;
     }
 
-    /** Aborta el merge/cherry-pick/revert en curso (equivalente a --abort). */
-    public void abortMerge() throws GitAPIException {
-        git.reset().setMode(ResetCommand.ResetType.HARD).call();
+    /** true si hay un rebase en curso. */
+    public boolean isRebasing() {
+        return repo.getRepositoryState().name().startsWith("REBASING");
+    }
+
+    /** true si hay cualquier operación (merge, rebase, cherry-pick…) en curso. */
+    public boolean isOperationInProgress() throws IOException {
+        return isMerging() || isRebasing();
     }
 
     /**
-     * Completa el merge en curso creando el commit de merge. Solo válido
-     * cuando no quedan conflictos.
+     * Rebasa la rama actual sobre otra.
+     * @return estado (OK, FAST_FORWARD, UP_TO_DATE, STOPPED=conflicto, …)
      */
-    public void completeMerge(String message) throws GitAPIException {
+    public String rebase(String upstream) throws GitAPIException {
+        return git.rebase().setUpstream(upstream).call().getStatus().name();
+    }
+
+    /** Aborta la operación en curso: rebase --abort o merge --abort. */
+    public void abortOperation() throws GitAPIException {
+        if (isRebasing()) {
+            git.rebase().setOperation(RebaseCommand.Operation.ABORT).call();
+        } else {
+            git.reset().setMode(ResetCommand.ResetType.HARD).call();
+        }
+    }
+
+    /**
+     * Continúa la operación en curso: rebase --continue o crea el commit de
+     * merge. Solo válido cuando no quedan conflictos.
+     */
+    public void continueOperation(String message) throws GitAPIException {
+        if (isRebasing()) {
+            Status s = git.status().call();
+            boolean nothingStaged = s.getAdded().isEmpty() && s.getChanged().isEmpty()
+                    && s.getRemoved().isEmpty();
+            git.rebase().setOperation(nothingStaged
+                    ? RebaseCommand.Operation.SKIP
+                    : RebaseCommand.Operation.CONTINUE).call();
+            return;
+        }
         var cmd = git.commit();
         if (message != null && !message.isBlank()) {
             cmd.setMessage(message);

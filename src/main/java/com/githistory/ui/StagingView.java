@@ -133,13 +133,13 @@ public class StagingView {
     }
 
     private HBox buildMergeBar() {
-        Label label = new Label("Merge en curso: resuelve los conflictos marcados con !");
+        Label label = new Label("Merge o rebase en curso: resuelve los conflictos marcados con !");
         label.getStyleClass().add("merge-bar-label");
-        Button abort = new Button("Abortar merge");
-        abort.setOnAction(e -> abortMerge());
-        Button complete = new Button("Completar merge");
+        Button abort = new Button("Abortar");
+        abort.setOnAction(e -> abortOperation());
+        Button complete = new Button("Continuar");
         complete.getStyleClass().add("accent-button");
-        complete.setOnAction(e -> completeMerge());
+        complete.setOnAction(e -> continueOperation());
         Region spacer = new Region();
         HBox.setHgrow(spacer, Priority.ALWAYS);
         HBox bar = new HBox(8, label, spacer, abort, complete);
@@ -150,18 +150,18 @@ public class StagingView {
         return bar;
     }
 
-    private void abortMerge() {
+    private void abortOperation() {
         Alert confirm = new Alert(Alert.AlertType.CONFIRMATION,
-                "Se descartará el merge en curso y se volverá al estado anterior. ¿Continuar?");
-        confirm.setHeaderText("Abortar merge");
+                "Se descartará la operación en curso y se volverá al estado anterior. ¿Continuar?");
+        confirm.setHeaderText("Abortar operación");
         confirm.showAndWait().filter(bt -> bt == ButtonType.OK).ifPresent(bt ->
-                repo.runTask("Abortando merge", p -> {
-                    repo.git().abortMerge();
+                repo.runTask("Abortando operación", p -> {
+                    repo.git().abortOperation();
                     return null;
                 }, v -> repo.refreshAll()));
     }
 
-    private void completeMerge() {
+    private void continueOperation() {
         boolean conflicts = unstagedList.getItems().stream()
                 .anyMatch(en -> en.state().equals("Conflicto"));
         if (conflicts) {
@@ -169,8 +169,8 @@ public class StagingView {
                     "Aún hay conflictos sin resolver.").showAndWait();
             return;
         }
-        repo.runTask("Completando merge", p -> {
-            repo.git().completeMerge(null);
+        repo.runTask("Continuando operación", p -> {
+            repo.git().continueOperation(null);
             return null;
         }, v -> repo.refreshAll());
     }
@@ -236,16 +236,16 @@ public class StagingView {
         }
         repo.runTask("Analizando cambios", p -> {
             GitService.WorkingTreeStatus status = repo.git().status();
-            boolean merging = repo.git().isMerging();
-            return new Object[]{status, merging};
+            boolean inProgress = repo.git().isOperationInProgress();
+            return new Object[]{status, inProgress};
         }, result -> {
             GitService.WorkingTreeStatus status = (GitService.WorkingTreeStatus) result[0];
-            boolean merging = (Boolean) result[1];
+            boolean inProgress = (Boolean) result[1];
             unstagedList.getItems().setAll(status.unstaged());
             stagedList.getItems().setAll(status.staged());
-            mergeBar.setVisible(merging);
-            mergeBar.setManaged(merging);
-            if (merging) {
+            mergeBar.setVisible(inProgress);
+            mergeBar.setManaged(inProgress);
+            if (inProgress) {
                 repo.showChangesTab();
             }
         });

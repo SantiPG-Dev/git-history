@@ -215,11 +215,14 @@ public class BranchPanel {
             MenuItem merge = new MenuItem("Mergear en la rama actual");
             merge.setDisable(branch.current());
             merge.setOnAction(e -> repo.mergeBranchInto(branch.shortName()));
+            MenuItem rebase = new MenuItem("Rebasar la rama actual sobre «" + branch.shortName() + "»");
+            rebase.setDisable(branch.current());
+            rebase.setOnAction(e -> repo.rebaseOnto(branch.shortName()));
             MenuItem create = new MenuItem("Nueva rama…");
             create.setOnAction(e -> createBranch());
             MenuItem delete = new MenuItem("Eliminar rama");
             delete.setOnAction(e -> deleteBranch(branch));
-            menu.getItems().addAll(checkout, merge, create, new SeparatorMenuItem(), delete);
+            menu.getItems().addAll(checkout, merge, rebase, create, new SeparatorMenuItem(), delete);
         }
         return menu;
     }
