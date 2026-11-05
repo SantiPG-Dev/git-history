@@ -303,6 +303,11 @@ public class GitService implements AutoCloseable {
         config.save();
     }
 
+    /** URL del remoto indicado (normalmente "origin"), o null si no existe. */
+    public String remoteUrl(String remote) {
+        return repo.getConfig().getString("remote", remote, "url");
+    }
+
     public List<BranchInfo> branches(boolean remote) throws GitAPIException, IOException {
         ListBranchCommand cmd = git.branchList();
         if (remote) {

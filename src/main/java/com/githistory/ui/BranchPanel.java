@@ -1,6 +1,7 @@
 package com.githistory.ui;
 
 import com.githistory.git.GitService;
+import com.githistory.net.GitHubService;
 import javafx.geometry.Insets;
 import javafx.scene.control.Alert;
 import javafx.scene.control.ButtonType;
@@ -30,7 +31,9 @@ public class BranchPanel {
     private record BranchData(List<GitService.BranchInfo> locals,
                               List<GitService.BranchInfo> remotes,
                               List<String> tags,
-                              List<GitService.StashEntry> stashes) {}
+                              List<GitService.StashEntry> stashes,
+                              List<GitHubService.PullRequest> pullRequests,
+                              List<GitHubService.Issue> issues) {}
 
     private final RepoView repo;
     private final VBox root = new VBox(4);
@@ -61,11 +64,26 @@ public class BranchPanel {
             lastData = null;
             return;
         }
-        repo.runTask("Actualizando ramas", p -> new BranchData(
-                repo.git().branches(false),
-                repo.git().branches(true),
-                repo.git().tags(),
-                repo.git().stashList()), data -> {
+        repo.runTask("Actualizando ramas", p -> {
+            List<GitHubService.PullRequest> prs = null;
+            List<GitHubService.Issue> issues = null;
+            String[] ownerRepo = GitHubService.ownerRepo(repo.git().remoteUrl("origin"));
+            if (ownerRepo != null) {
+                try {
+                    GitHubService github = new GitHubService();
+                    prs = github.listOpenPullRequests(ownerRepo[0], ownerRepo[1]);
+                    issues = github.listOpenIssues(ownerRepo[0], ownerRepo[1]);
+                } catch (Exception ignored) {
+                    // Sin red o API no disponible: las secciones se ocultan.
+                }
+            }
+            return new BranchData(
+                    repo.git().branches(false),
+                    repo.git().branches(true),
+                    repo.git().tags(),
+                    repo.git().stashList(),
+                    prs, issues);
+        }, data -> {
             lastData = data;
             rebuild();
         });
@@ -89,7 +107,22 @@ public class BranchPanel {
         locals.setExpanded(true);
         remotes.setExpanded(true);
         rootItem.getChildren().addAll(locals, remotes, tags, stashes);
+        if (lastData.pullRequests() != null) {
+            rootItem.getChildren().add(section("PULL REQUESTS", lastData.pullRequests()));
+        }
+        if (lastData.issues() != null) {
+            rootItem.getChildren().add(section("ISSUES", lastData.issues()));
+        }
         tree.setRoot(rootItem);
+    }
+
+    /** Abre una URL en el navegador del sistema (xdg-open en Linux). */
+    private static void openInBrowser(String url) {
+        try {
+            new ProcessBuilder("xdg-open", url).start();
+        } catch (Exception ignored) {
+            // Sin navegador disponible: no hay nada que hacer.
+        }
     }
 
     private static boolean matches(String name, String filter) {
@@ -215,6 +248,22 @@ public class BranchPanel {
             if (item instanceof String header) {
                 setText(header);
                 getStyleClass().add("branch-header");
+            } else if (item instanceof GitHubService.PullRequest pr) {
+                setText("#" + pr.number() + " — " + pr.title() + " (" + pr.author() + ")");
+                getStyleClass().add("branch-tag");
+                setOnMouseClicked(e -> {
+                    if (e.getClickCount() == 2) {
+                        openInBrowser(pr.url());
+                    }
+                });
+            } else if (item instanceof GitHubService.Issue issue) {
+                setText("#" + issue.number() + " — " + issue.title() + " (" + issue.author() + ")");
+                getStyleClass().add("branch-tag");
+                setOnMouseClicked(e -> {
+                    if (e.getClickCount() == 2) {
+                        openInBrowser(issue.url());
+                    }
+                });
             } else if (item instanceof TagInfo tag) {
                 setText(tag.name());
                 getStyleClass().add("branch-tag");
