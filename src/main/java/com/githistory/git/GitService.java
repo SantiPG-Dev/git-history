@@ -4,6 +4,7 @@ import org.eclipse.jgit.api.CreateBranchCommand;
 import org.eclipse.jgit.api.DiffCommand;
 import org.eclipse.jgit.api.Git;
 import org.eclipse.jgit.api.ListBranchCommand;
+import org.eclipse.jgit.api.ResetCommand;
 import org.eclipse.jgit.api.Status;
 import org.eclipse.jgit.api.errors.GitAPIException;
 import org.eclipse.jgit.diff.DiffEntry;
@@ -209,6 +210,22 @@ public class GitService implements AutoCloseable {
 
     public void commit(String message) throws GitAPIException {
         git.commit().setMessage(message).call();
+    }
+
+    /** SHA del commit al que apunta HEAD, o null si la rama aún no nació. */
+    public String headSha() throws IOException {
+        ObjectId id = repo.resolve(Constants.HEAD);
+        return id == null ? null : id.getName();
+    }
+
+    /** Nombre de la rama actual, o el SHA de HEAD si está separado. */
+    public String headRef() throws IOException {
+        return repo.getBranch();
+    }
+
+    /** Reset suave a un commit: mueve HEAD y deja los cambios preparados. */
+    public void resetSoft(String sha) throws GitAPIException {
+        git.reset().setMode(ResetCommand.ResetType.SOFT).setRef(sha).call();
     }
 
     /**

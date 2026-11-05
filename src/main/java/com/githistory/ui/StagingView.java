@@ -195,10 +195,12 @@ public class StagingView {
             return;
         }
         repo.runTask("Creando commit", p -> {
+            String preSha = repo.git().headSha();
             repo.git().commit(message);
-            return null;
-        }, v -> {
+            return preSha;
+        }, preSha -> {
             messageArea.clear();
+            repo.recordCommit(message, preSha);
             repo.refreshAll();
         });
     }
