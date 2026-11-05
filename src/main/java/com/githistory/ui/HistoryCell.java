@@ -5,6 +5,7 @@ import com.githistory.git.GraphRow;
 import javafx.geometry.Pos;
 import javafx.scene.canvas.Canvas;
 import javafx.scene.canvas.GraphicsContext;
+import javafx.scene.image.Image;
 import javafx.scene.control.ContextMenu;
 import javafx.scene.control.Label;
 import javafx.scene.control.ListCell;
@@ -17,6 +18,7 @@ import javafx.scene.paint.Color;
 
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
+import java.util.function.Function;
 import java.util.function.IntSupplier;
 
 /**
@@ -49,6 +51,7 @@ public class HistoryCell extends ListCell<GraphRow> {
 
     private final IntSupplier maxLanes;
     private final CommitActions actions;
+    private final Function<String, Image> avatarFor;
     private final Canvas canvas = new Canvas();
     private final HBox refsBox = new HBox(4);
     private final Label message = new Label();
@@ -57,9 +60,11 @@ public class HistoryCell extends ListCell<GraphRow> {
     private final Label hash = new Label();
     private final HBox box;
 
-    public HistoryCell(IntSupplier maxLanes, CommitActions actions) {
+    public HistoryCell(IntSupplier maxLanes, Function<String, Image> avatarFor,
+                       CommitActions actions) {
         this.maxLanes = maxLanes;
         this.actions = actions;
+        this.avatarFor = avatarFor;
         message.getStyleClass().add("graph-message");
         author.getStyleClass().add("graph-meta");
         date.getStyleClass().add("graph-meta");
@@ -144,17 +149,32 @@ public class HistoryCell extends ListCell<GraphRow> {
         double x = laneX(row.column());
         Color color = color(row.column());
         boolean isHead = row.commit().refs().stream().anyMatch(CommitInfo.RefLabel::current);
-        g.setFill(Color.web("#1e1e2e"));
-        g.fillOval(x - 5.5, mid - 5.5, 11, 11);
-        g.setStroke(color);
-        g.strokeOval(x - 5.5, mid - 5.5, 11, 11);
-        g.setFill(color);
-        if (isHead) {
-            g.fillOval(x - 3.5, mid - 3.5, 7, 7);
-            g.setFill(Color.web("#1e1e2e"));
-            g.fillOval(x - 1.5, mid - 1.5, 3, 3);
+
+        // Avatar del autor dentro del nodo (si está en caché); si no, punto.
+        Image avatar = row.commit().email() == null ? null : avatarFor.apply(row.commit().email());
+        if (avatar != null) {
+            g.save();
+            g.beginPath();
+            g.arc(x, mid, 8, 8, 0, 360);
+            g.closePath();
+            g.clip();
+            g.drawImage(avatar, x - 8, mid - 8, 16, 16);
+            g.restore();
+            g.setStroke(color);
+            g.strokeOval(x - 8, mid - 8, 16, 16);
         } else {
+            g.setFill(Color.web("#1e1e2e"));
+            g.fillOval(x - 5.5, mid - 5.5, 11, 11);
+            g.setStroke(color);
+            g.strokeOval(x - 5.5, mid - 5.5, 11, 11);
+            g.setFill(color);
             g.fillOval(x - 2, mid - 2, 4, 4);
+        }
+        if (isHead) {
+            g.setStroke(Color.web("#cdd6f4"));
+            g.setLineDashes(3);
+            g.strokeOval(x - 10.5, mid - 10.5, 21, 21);
+            g.setLineDashes((double[]) null);
         }
     }
 

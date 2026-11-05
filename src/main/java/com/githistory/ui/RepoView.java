@@ -46,6 +46,7 @@ import java.io.IOException;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
@@ -90,6 +91,8 @@ public class RepoView {
     private List<GitService.BranchInfo> lastBranches = List.of();
     private List<Integer> searchHits = List.of();
     private int searchCursor = -1;
+    private final Map<String, javafx.scene.image.Image> avatars =
+            new java.util.concurrent.ConcurrentHashMap<>();
 
     public RepoView(CredentialsPrompt credentials) {
         this.credentials = credentials;
@@ -100,7 +103,7 @@ public class RepoView {
 
         historyList = new ListView<>();
         historyList.setFixedCellSize(HistoryCell.ROW_HEIGHT);
-        historyList.setCellFactory(lv -> new HistoryCell(() -> historyMaxLanes,
+        historyList.setCellFactory(lv -> new HistoryCell(() -> historyMaxLanes, avatars::get,
                 new HistoryCell.CommitActions() {
                     @Override
                     public void createBranchAt(CommitInfo commit) {
@@ -244,9 +247,42 @@ public class RepoView {
                             && !allRows.isEmpty()) {
                         historyList.getSelectionModel().select(0);
                     }
+                    preloadAvatars();
                 });
         branchPanel.refresh();
         stagingView.refresh();
+    }
+
+    /**
+     * Precarga en segundo plano los avatares de los autores visibles en el
+     * historial (máx. 60 emails distintos) y repinta el grafo al terminar.
+     */
+    private void preloadAvatars() {
+        List<String> emails = allRows.stream()
+                .map(r -> r.commit().email())
+                .filter(java.util.Objects::nonNull)
+                .distinct()
+                .limit(60)
+                .filter(e -> !avatars.containsKey(e))
+                .toList();
+        if (emails.isEmpty()) {
+            return;
+        }
+        runTask("Cargando avatares", p -> {
+            int loaded = 0;
+            for (String email : emails) {
+                var image = AvatarService.load(email, 24);
+                if (image != null) {
+                    avatars.put(email, image);
+                    loaded++;
+                }
+            }
+            return loaded;
+        }, loaded -> {
+            if (loaded > 0) {
+                historyList.refresh();
+            }
+        });
     }
 
     public void fetch() {
