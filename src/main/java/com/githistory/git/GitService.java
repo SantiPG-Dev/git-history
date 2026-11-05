@@ -615,33 +615,46 @@ public class GitService implements AutoCloseable {
             RevTree oldTree = commit.getParentCount() == 0
                     ? null
                     : walk.parseCommit(commit.getParent(0).getId()).getTree();
-            try (ObjectReader reader = repo.newObjectReader()) {
-                AbstractTreeIterator oldIter = oldTree == null
-                        ? new EmptyTreeIterator()
-                        : new CanonicalTreeParser(null, reader, oldTree.getId());
-                AbstractTreeIterator newIter = new CanonicalTreeParser(null, reader, newTree.getId());
-                List<DiffEntry> entries;
-                try (DiffFormatter df = new DiffFormatter(DisabledOutputStream.INSTANCE)) {
+            return diffTrees(oldTree, newTree);
+        }
+    }
+
+    /** Diff entre dos commits cualesquiera (de oldSha a newSha). */
+    public List<DiffFile> diffBetween(String oldSha, String newSha) throws IOException {
+        try (RevWalk walk = new RevWalk(repo)) {
+            RevTree oldTree = walk.parseCommit(ObjectId.fromString(oldSha)).getTree();
+            RevTree newTree = walk.parseCommit(ObjectId.fromString(newSha)).getTree();
+            return diffTrees(oldTree, newTree);
+        }
+    }
+
+    private List<DiffFile> diffTrees(RevTree oldTree, RevTree newTree) throws IOException {
+        try (ObjectReader reader = repo.newObjectReader()) {
+            AbstractTreeIterator oldIter = oldTree == null
+                    ? new EmptyTreeIterator()
+                    : new CanonicalTreeParser(null, reader, oldTree.getId());
+            AbstractTreeIterator newIter = new CanonicalTreeParser(null, reader, newTree.getId());
+            List<DiffEntry> entries;
+            try (DiffFormatter df = new DiffFormatter(DisabledOutputStream.INSTANCE)) {
+                df.setRepository(repo);
+                df.setDetectRenames(true);
+                entries = df.scan(oldIter, newIter);
+            }
+            List<DiffFile> files = new ArrayList<>();
+            for (DiffEntry entry : entries) {
+                ByteArrayOutputStream out = new ByteArrayOutputStream();
+                try (DiffFormatter df = new DiffFormatter(out)) {
                     df.setRepository(repo);
                     df.setDetectRenames(true);
-                    entries = df.scan(oldIter, newIter);
+                    df.format(entry);
                 }
-                List<DiffFile> files = new ArrayList<>();
-                for (DiffEntry entry : entries) {
-                    ByteArrayOutputStream out = new ByteArrayOutputStream();
-                    try (DiffFormatter df = new DiffFormatter(out)) {
-                        df.setRepository(repo);
-                        df.setDetectRenames(true);
-                        df.format(entry);
-                    }
-                    String path = entry.getChangeType() == DiffEntry.ChangeType.DELETE
-                            ? entry.getOldPath()
-                            : entry.getNewPath();
-                    files.add(new DiffFile(path, changeTypeName(entry.getChangeType()),
-                            out.toString(StandardCharsets.UTF_8)));
-                }
-                return files;
+                String path = entry.getChangeType() == DiffEntry.ChangeType.DELETE
+                        ? entry.getOldPath()
+                        : entry.getNewPath();
+                files.add(new DiffFile(path, changeTypeName(entry.getChangeType()),
+                        out.toString(StandardCharsets.UTF_8)));
             }
+            return files;
         }
     }
 
