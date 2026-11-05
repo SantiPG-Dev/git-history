@@ -215,6 +215,45 @@ public class GitService implements AutoCloseable {
         git.commit().setMessage(message).call();
     }
 
+    /** Enmienda el último commit; con message null conserva el mensaje original. */
+    public void amend(String message) throws GitAPIException, IOException {
+        var cmd = git.commit().setAmend(true);
+        if (message != null && !message.isBlank()) {
+            cmd.setMessage(message);
+        } else {
+            // JGit exige mensaje incluso en amend: se reutiliza el original.
+            try (RevWalk walk = new RevWalk(repo)) {
+                RevCommit head = walk.parseCommit(repo.resolve(Constants.HEAD));
+                cmd.setMessage(head.getFullMessage());
+            }
+        }
+        cmd.call();
+    }
+
+    /** Descarta los cambios de un archivo con seguimiento (checkout -- path). */
+    public void discardChanges(String path) throws GitAPIException {
+        git.checkout().addPath(path).call();
+    }
+
+    /**
+     * Elimina un archivo sin seguimiento (descartar un "Nuevo" = borrarlo),
+     * con guarda anti path traversal.
+     */
+    public void deleteUntracked(String path) throws IOException {
+        Path root = repo.getWorkTree().toPath().toAbsolutePath().normalize();
+        Path resolved = root.resolve(path).normalize();
+        if (!resolved.startsWith(root)) {
+            throw new IOException("Ruta fuera del repositorio: " + path);
+        }
+        Files.deleteIfExists(resolved);
+    }
+
+    /** Descarta TODOS los cambios: reset --hard y borra archivos sin seguimiento. */
+    public void discardAll() throws GitAPIException {
+        git.reset().setMode(ResetCommand.ResetType.HARD).call();
+        git.clean().setCleanDirectories(true).call();
+    }
+
     /** SHA del commit al que apunta HEAD, o null si la rama aún no nació. */
     public String headSha() throws IOException {
         ObjectId id = repo.resolve(Constants.HEAD);

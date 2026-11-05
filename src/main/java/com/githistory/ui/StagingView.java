@@ -7,6 +7,7 @@ import javafx.geometry.Pos;
 import javafx.scene.control.Alert;
 import javafx.scene.control.Button;
 import javafx.scene.control.ButtonType;
+import javafx.scene.control.CheckBox;
 import javafx.scene.control.ContextMenu;
 import javafx.scene.control.Dialog;
 import javafx.scene.control.Label;
@@ -45,7 +46,7 @@ public class StagingView {
         lists.setPadding(new Insets(4, 8, 8, 8));
 
         Label unstagedHeader = section("Cambios sin preparar");
-        unstagedList.setCellFactory(lv -> new StatusCell());
+        unstagedList.setCellFactory(lv -> new StatusCell(true));
         VBox.setVgrow(unstagedList, Priority.ALWAYS);
         unstagedList.setOnMouseClicked(e -> {
             if (e.getClickCount() == 2) {
@@ -70,7 +71,7 @@ public class StagingView {
                 }, v -> refresh()));
 
         Label stagedHeader = section("Cambios preparados");
-        stagedList.setCellFactory(lv -> new StatusCell());
+        stagedList.setCellFactory(lv -> new StatusCell(false));
         VBox.setVgrow(stagedList, Priority.ALWAYS);
         stagedList.setOnMouseClicked(e -> {
             if (e.getClickCount() == 2) {
@@ -97,15 +98,20 @@ public class StagingView {
         Label messageHeader = section("Mensaje del commit");
         messageArea.setPromptText("Resumen de los cambios…");
         messageArea.setPrefRowCount(3);
+        CheckBox amendBox = new CheckBox("Enmendar último commit (amend)");
         Button commit = new Button("Commit");
         commit.setMaxWidth(Double.MAX_VALUE);
         commit.getStyleClass().add("accent-button");
-        commit.setOnAction(e -> doCommit());
+        commit.setOnAction(e -> doCommit(amendBox.isSelected()));
+
+        Button discardAll = new Button("Descartar todo");
+        discardAll.setMaxWidth(Double.MAX_VALUE);
+        discardAll.setOnAction(e -> discardAll());
 
         lists.getChildren().addAll(
                 unstagedHeader, unstagedList, new HBox(6, stageOne, stageAll),
                 stagedHeader, stagedList, new HBox(6, unstageOne, unstageAll),
-                messageHeader, messageArea, commit);
+                messageHeader, messageArea, amendBox, commit, discardAll);
 
         unstagedList.getSelectionModel().selectedItemProperty().addListener((obs, o, item) -> {
             if (item != null) {
@@ -281,13 +287,13 @@ public class StagingView {
         }, v -> refresh());
     }
 
-    private void doCommit() {
+    private void doCommit(boolean amend) {
         String message = messageArea.getText().trim();
-        if (message.isEmpty()) {
+        if (message.isEmpty() && !amend) {
             new Alert(Alert.AlertType.WARNING, "Escribe un mensaje para el commit.").showAndWait();
             return;
         }
-        if (stagedList.getItems().isEmpty()) {
+        if (stagedList.getItems().isEmpty() && !amend) {
             new Alert(Alert.AlertType.WARNING,
                     "No hay cambios preparados. Prepara algún archivo primero.").showAndWait();
             return;
@@ -296,15 +302,66 @@ public class StagingView {
                 && !promptIdentity()) {
             return;
         }
-        repo.runTask("Creando commit", p -> {
+        repo.runTask(amend ? "Enmendando commit" : "Creando commit", p -> {
             String preSha = repo.git().headSha();
-            repo.git().commit(message);
+            if (amend) {
+                if (preSha == null) {
+                    throw new IllegalStateException("No hay ningún commit que enmendar.");
+                }
+                repo.git().amend(message.isEmpty() ? null : message);
+            } else {
+                repo.git().commit(message);
+            }
             return preSha;
         }, preSha -> {
             messageArea.clear();
-            repo.recordCommit(message, preSha);
+            if (amend) {
+                repo.recordAction("Amend: " + abbrev(message),
+                        g -> g.resetSoft(preSha),
+                        g -> g.amend(message.isEmpty() ? null : message));
+            } else {
+                repo.recordCommit(message, preSha);
+            }
             repo.refreshAll();
         });
+    }
+
+    private void discardAll() {
+        Alert confirm = new Alert(Alert.AlertType.CONFIRMATION,
+                "Se descartarán TODOS los cambios sin commitear, incluidos los"
+                        + " archivos nuevos. Esta acción no se puede deshacer. ¿Continuar?");
+        confirm.setHeaderText("Descartar todos los cambios");
+        confirm.showAndWait().filter(bt -> bt == ButtonType.OK).ifPresent(bt ->
+                repo.runTask("Descartando todo", p -> {
+                    repo.git().discardAll();
+                    return null;
+                }, v -> repo.refreshAll()));
+    }
+
+    private void discardFile(GitService.StatusEntry entry) {
+        boolean untracked = entry.state().equals("Nuevo");
+        Alert confirm = new Alert(Alert.AlertType.CONFIRMATION,
+                untracked
+                        ? "«" + entry.path() + "» no tiene seguimiento: se eliminará del disco."
+                        : "Se descartarán los cambios de «" + entry.path() + "».");
+        confirm.setHeaderText("Descartar cambios (no deshacible)");
+        confirm.showAndWait().filter(bt -> bt == ButtonType.OK).ifPresent(bt ->
+                repo.runTask("Descartando " + entry.path(), p -> {
+                    if (untracked) {
+                        repo.git().deleteUntracked(entry.path());
+                    } else {
+                        repo.git().discardChanges(entry.path());
+                    }
+                    return null;
+                }, v -> repo.refreshAll()));
+    }
+
+    private static String abbrev(String message) {
+        if (message == null || message.isBlank()) {
+            return "(mensaje original)";
+        }
+        String first = message.lines().findFirst().orElse(message);
+        return first.length() > 40 ? first.substring(0, 40) + "…" : first;
     }
 
     private boolean promptIdentity() {
@@ -339,6 +396,13 @@ public class StagingView {
     }
 
     private class StatusCell extends ListCell<GitService.StatusEntry> {
+
+        private final boolean unstaged;
+
+        StatusCell(boolean unstaged) {
+            this.unstaged = unstaged;
+        }
+
         @Override
         protected void updateItem(GitService.StatusEntry entry, boolean empty) {
             super.updateItem(entry, empty);
@@ -363,6 +427,10 @@ public class StagingView {
                 MenuItem resolve = new MenuItem("Resolver conflicto…");
                 resolve.setOnAction(e -> showConflictEditor(entry));
                 setContextMenu(new ContextMenu(resolve));
+            } else if (unstaged) {
+                MenuItem discard = new MenuItem("Descartar cambios");
+                discard.setOnAction(e -> discardFile(entry));
+                setContextMenu(new ContextMenu(discard));
             }
         }
     }
