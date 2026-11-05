@@ -167,6 +167,7 @@ public class MainView {
             commands.add(new CommandPalette.Command("Pop de stash", repo::stashPop));
             commands.add(new CommandPalette.Command("Abrir terminal", repo::openTerminal));
             commands.add(new CommandPalette.Command("Reflog de HEAD…", repo::openReflog));
+            commands.add(new CommandPalette.Command("Gestionar remotos…", repo::openRemotes));
             for (GitService.BranchInfo b : repo.knownBranches()) {
                 if (!b.current()) {
                     commands.add(new CommandPalette.Command(
@@ -186,6 +187,8 @@ public class MainView {
         MenuItem clonar = new MenuItem("Clonar repositorio…");
         clonar.setAccelerator(KeyCombination.keyCombination("Ctrl+Shift+O"));
         clonar.setOnAction(e -> cloneRepo());
+        MenuItem inicializar = new MenuItem("Inicializar repositorio…");
+        inicializar.setOnAction(e -> initRepoDialog());
         MenuItem cerrar = new MenuItem("Cerrar pestaña");
         cerrar.setAccelerator(KeyCombination.keyCombination("Ctrl+W"));
         cerrar.setOnAction(e -> closeActiveTab());
@@ -195,7 +198,7 @@ public class MainView {
         MenuItem salir = new MenuItem("Salir");
         salir.setAccelerator(KeyCombination.keyCombination("Ctrl+Q"));
         salir.setOnAction(e -> Platform.exit());
-        archivo.getItems().addAll(abrir, clonar, new SeparatorMenuItem(), cerrar,
+        archivo.getItems().addAll(abrir, clonar, inicializar, new SeparatorMenuItem(), cerrar,
                 new SeparatorMenuItem(), prefs, new SeparatorMenuItem(), salir);
 
         Menu acciones = new Menu("Acciones");
@@ -245,6 +248,13 @@ public class MainView {
                 repo.pushTags();
             }
         });
+        MenuItem remotos = new MenuItem("Gestionar remotos…");
+        remotos.setOnAction(e -> {
+            RepoView repo = activeRepo();
+            if (repo != null) {
+                repo.openRemotes();
+            }
+        });
         MenuItem refrescar = new MenuItem("Refrescar");
         refrescar.setAccelerator(KeyCombination.keyCombination("F5"));
         refrescar.setOnAction(e -> {
@@ -254,7 +264,7 @@ public class MainView {
             }
         });
         acciones.getItems().addAll(deshacer, rehacer, new SeparatorMenuItem(),
-                fetch, pull, push, pushTags, new SeparatorMenuItem(), refrescar);
+                fetch, pull, push, pushTags, new SeparatorMenuItem(), remotos, refrescar);
         acciones.setOnShowing(e -> {
             boolean noRepo = activeRepo() == null;
             deshacer.setDisable(noRepo);
@@ -263,6 +273,7 @@ public class MainView {
             pull.setDisable(noRepo);
             push.setDisable(noRepo);
             pushTags.setDisable(noRepo);
+            remotos.setDisable(noRepo);
             refrescar.setDisable(noRepo);
         });
 
@@ -331,7 +342,10 @@ public class MainView {
         Button clone = new Button("Clonar repositorio…");
         clone.getStyleClass().add("accent-button");
         clone.setOnAction(e -> cloneRepo());
-        VBox box = new VBox(12, title, sub, open, clone);
+        Button init = new Button("Inicializar repositorio…");
+        init.getStyleClass().add("accent-button");
+        init.setOnAction(e -> initRepoDialog());
+        VBox box = new VBox(12, title, sub, open, clone, init);
         box.setAlignment(Pos.CENTER);
         return box;
     }
@@ -351,5 +365,19 @@ public class MainView {
                     GitService.cloneRepo(request.url(), request.directory(), credentials, p);
                     return null;
                 }, v -> openRepo(request.directory())));
+    }
+
+    private void initRepoDialog() {
+        DirectoryChooser chooser = new DirectoryChooser();
+        chooser.setTitle("Carpeta donde inicializar el repositorio");
+        File dir = chooser.showDialog(stage);
+        if (dir == null) {
+            return;
+        }
+        Path path = dir.toPath();
+        runGlobalTask("Inicializando " + path, p -> {
+            GitService.initRepo(path);
+            return null;
+        }, v -> openRepo(path));
     }
 }

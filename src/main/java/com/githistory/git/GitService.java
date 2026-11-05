@@ -512,6 +512,46 @@ public class GitService implements AutoCloseable {
         return repo.getConfig().getString("remote", remote, "url");
     }
 
+    public record RemoteInfo(String name, String url) {}
+
+    /** Remotos configurados en el repo, ordenados por nombre. */
+    public List<RemoteInfo> remotes() {
+        List<RemoteInfo> out = new ArrayList<>();
+        for (String name : repo.getConfig().getSubsections("remote")) {
+            out.add(new RemoteInfo(name, repo.getConfig().getString("remote", name, "url")));
+        }
+        out.sort(Comparator.comparing(RemoteInfo::name));
+        return out;
+    }
+
+    public void addRemote(String name, String url) throws IOException {
+        StoredConfig config = repo.getConfig();
+        config.setString("remote", name, "url", url);
+        config.setString("remote", name, "fetch",
+                "+refs/heads/*:refs/remotes/" + name + "/*");
+        config.save();
+    }
+
+    /** Elimina el remoto y sus referencias de seguimiento (refs/remotes/name/*). */
+    public void removeRemote(String name) throws IOException, GitAPIException {
+        StoredConfig config = repo.getConfig();
+        config.unsetSection("remote", name);
+        String branch = repo.getBranch();
+        if (branch != null && name.equals(config.getString("branch", branch, "remote"))) {
+            config.unset("branch", branch, "remote");
+            config.unset("branch", branch, "merge");
+        }
+        config.save();
+        for (Ref ref : repo.getRefDatabase().getRefsByPrefix(Constants.R_REMOTES + name + "/")) {
+            git.branchDelete().setBranchNames(ref.getName()).setForce(true).call();
+        }
+    }
+
+    /** Inicializa un repositorio nuevo en el directorio indicado. */
+    public static void initRepo(Path directory) throws GitAPIException {
+        Git.init().setDirectory(directory.toFile()).call().close();
+    }
+
     public List<BranchInfo> branches(boolean remote) throws GitAPIException, IOException {
         ListBranchCommand cmd = git.branchList();
         if (remote) {

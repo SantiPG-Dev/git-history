@@ -941,4 +941,26 @@ public class RepoView {
         Clipboard.getSystemClipboard().setContent(content);
         statusLabel.setText("Hash copiado: " + sha.substring(0, 7));
     }
+
+    /** Abre el diálogo de gestión de remotos. */
+    public void openRemotes() {
+        new RemotesDialog(getRoot().getScene().getWindow(), new RemotesDialog.RemoteActions() {
+            @Override
+            public List<GitService.RemoteInfo> remotes() {
+                return git.remotes();
+            }
+
+            @Override
+            public void addRemote(String name, String url) throws Exception {
+                git.addRemote(name, url);
+                refreshAll();
+            }
+
+            @Override
+            public void removeRemote(String name) throws Exception {
+                git.removeRemote(name);
+                refreshAll();
+            }
+        }).showAndWait();
+    }
 }
