@@ -664,6 +664,40 @@ public class RepoView {
         rightTabs.getSelectionModel().select(1);
     }
 
+    /** Rebasa la rama actual sobre otra (menú contextual del panel). */
+    public void rebaseOnto(String branchName) {
+        Alert confirm = new Alert(Alert.AlertType.CONFIRMATION,
+                "La rama actual se rebasará sobre «" + branchName
+                        + "» (reescribe los commits locales). ¿Continuar?");
+        confirm.setHeaderText("Rebase");
+        confirm.showAndWait().filter(bt -> bt == ButtonType.OK).ifPresent(bt ->
+                runTask("Rebase sobre " + branchName, p -> {
+                    if (!git.isClean()) {
+                        throw new IllegalStateException(
+                                "Hay cambios sin commitear. Haz commit o stash antes del rebase.");
+                    }
+                    String preSha = git.headSha();
+                    String status = git.rebase(branchName);
+                    return new String[]{preSha, status};
+                }, result -> {
+                    String status = result[1];
+                    if (status.startsWith("STOPPED") || status.startsWith("CONFLICTS")
+                            || status.startsWith("FAILED")) {
+                        new Alert(Alert.AlertType.WARNING,
+                                "El rebase se detuvo por conflictos (" + status + ")."
+                                        + " Resuélvelos en la pestaña Cambios y pulsa"
+                                        + " Continuar, o Abortar para volver atrás.").showAndWait();
+                    } else {
+                        String preSha = result[0];
+                        recordAction("Rebase sobre: " + branchName,
+                                g -> g.resetHard(preSha),
+                                g -> g.rebase(branchName));
+                        statusLabel.setText("Rebase " + status);
+                    }
+                    refreshAll();
+                }));
+    }
+
     /** Muestra el blame de un archivo en un commit (menú contextual del detalle). */
     public void showBlame(String path, String commitId) {
         runTask("Blame de " + path, p -> git.blame(path, commitId),
