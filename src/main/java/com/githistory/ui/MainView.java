@@ -1,16 +1,21 @@
 package com.githistory.ui;
 
 import com.githistory.git.GitService;
-import javafx.beans.binding.Bindings;
+import javafx.application.Platform;
 import javafx.geometry.Pos;
 import javafx.scene.Node;
+import javafx.scene.control.Alert;
 import javafx.scene.control.Button;
+import javafx.scene.control.CheckMenuItem;
 import javafx.scene.control.Label;
+import javafx.scene.control.Menu;
+import javafx.scene.control.MenuBar;
+import javafx.scene.control.MenuItem;
 import javafx.scene.control.ProgressBar;
-import javafx.scene.control.Separator;
+import javafx.scene.control.SeparatorMenuItem;
 import javafx.scene.control.Tab;
 import javafx.scene.control.TabPane;
-import javafx.scene.control.ToolBar;
+import javafx.scene.input.KeyCombination;
 import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
@@ -24,9 +29,9 @@ import java.nio.file.Path;
 import java.util.function.Consumer;
 
 /**
- * Ventana principal: barra de herramientas global y un TabPane con una
- * pestaña por repositorio abierto (cada una con su propia {@link RepoView}).
- * La barra de estado global se usa para operaciones sin repo abierto (clonar).
+ * Ventana principal: barra de menús superior (Archivo/Acciones/Ver/Ayuda),
+ * TabPane con una pestaña por repositorio más una pestaña "+" final que
+ * muestra la pantalla de bienvenida para abrir o clonar.
  */
 public class MainView {
 
@@ -34,16 +39,30 @@ public class MainView {
     private final BorderPane root = new BorderPane();
     private final CredentialsPrompt credentials = new CredentialsPrompt();
     private final TabPane repoTabs = new TabPane();
-    private final Node welcome;
+    private final Tab plusTab;
 
     private final Label statusLabel = new Label("Listo");
     private final ProgressBar progressBar = new ProgressBar(0);
+    private final HBox globalStatusBar;
 
     public MainView(Stage stage) {
         this.stage = stage;
-        welcome = buildWelcome();
-        root.setTop(buildToolbar());
-        root.setCenter(welcome);
+
+        plusTab = new Tab("+");
+        plusTab.setClosable(false);
+        plusTab.setTooltip(new javafx.scene.control.Tooltip("Abrir o clonar un repositorio"));
+        plusTab.setContent(buildWelcome());
+        repoTabs.getTabs().add(plusTab);
+        repoTabs.getSelectionModel().selectedItemProperty().addListener((obs, o, tab) -> {
+            if (tab == null || tab == plusTab) {
+                stage.setTitle("Git History");
+            } else {
+                stage.setTitle("Git History — " + tab.getText());
+            }
+        });
+
+        root.setTop(buildMenuBar());
+        root.setCenter(repoTabs);
 
         progressBar.setVisible(false);
         progressBar.setPrefWidth(220);
@@ -56,20 +75,7 @@ public class MainView {
         statusBar.setVisible(false);
         root.setBottom(statusBar);
         this.globalStatusBar = statusBar;
-
-        repoTabs.getSelectionModel().selectedItemProperty().addListener((obs, o, tab) -> {
-            if (tab == null) {
-                if (repoTabs.getTabs().isEmpty() && root.getCenter() != welcome) {
-                    root.setCenter(welcome);
-                    stage.setTitle("Git History");
-                }
-            } else {
-                stage.setTitle("Git History — " + tab.getText());
-            }
-        });
     }
-
-    private final HBox globalStatusBar;
 
     public BorderPane getRoot() {
         return root;
@@ -87,8 +93,7 @@ public class MainView {
 
     public void openRepo(Path dir) {
         for (Tab tab : repoTabs.getTabs()) {
-            RepoView view = (RepoView) tab.getUserData();
-            if (dir.equals(view.getRepoPath())) {
+            if (tab.getUserData() instanceof RepoView view && dir.equals(view.getRepoPath())) {
                 repoTabs.getSelectionModel().select(tab);
                 return;
             }
@@ -97,67 +102,116 @@ public class MainView {
         Tab tab = new Tab(dir.getFileName().toString());
         tab.setUserData(view);
         tab.setContent(view.getRoot());
-        tab.setOnClosed(e -> {
-            view.close();
-            if (repoTabs.getTabs().isEmpty()) {
-                root.setCenter(welcome);
-                stage.setTitle("Git History");
-            }
-        });
-        repoTabs.getTabs().add(tab);
+        tab.setOnClosed(e -> view.close());
+        repoTabs.getTabs().add(repoTabs.getTabs().size() - 1, tab);
         repoTabs.getSelectionModel().select(tab);
-        if (root.getCenter() != repoTabs) {
-            root.setCenter(repoTabs);
-        }
         stage.setTitle("Git History — " + tab.getText());
         view.openRepo(dir, () -> repoTabs.getTabs().remove(tab));
     }
 
     private RepoView activeRepo() {
         Tab tab = repoTabs.getSelectionModel().getSelectedItem();
-        return tab != null ? (RepoView) tab.getUserData() : null;
+        return tab != null && tab.getUserData() instanceof RepoView view ? view : null;
     }
 
-    private ToolBar buildToolbar() {
-        Button open = new Button("Abrir…");
-        open.setOnAction(e -> openRepoDialog());
-        Button clone = new Button("Clonar…");
-        clone.setOnAction(e -> cloneRepo());
-        Button fetch = new Button("Fetch");
+    private MenuBar buildMenuBar() {
+        Menu archivo = new Menu("Archivo");
+        MenuItem abrir = new MenuItem("Abrir repositorio…");
+        abrir.setAccelerator(KeyCombination.keyCombination("Ctrl+O"));
+        abrir.setOnAction(e -> openRepoDialog());
+        MenuItem clonar = new MenuItem("Clonar repositorio…");
+        clonar.setAccelerator(KeyCombination.keyCombination("Ctrl+Shift+O"));
+        clonar.setOnAction(e -> cloneRepo());
+        MenuItem cerrar = new MenuItem("Cerrar pestaña");
+        cerrar.setAccelerator(KeyCombination.keyCombination("Ctrl+W"));
+        cerrar.setOnAction(e -> closeActiveTab());
+        MenuItem salir = new MenuItem("Salir");
+        salir.setAccelerator(KeyCombination.keyCombination("Ctrl+Q"));
+        salir.setOnAction(e -> Platform.exit());
+        archivo.getItems().addAll(abrir, clonar, new SeparatorMenuItem(), cerrar,
+                new SeparatorMenuItem(), salir);
+
+        Menu acciones = new Menu("Acciones");
+        MenuItem fetch = new MenuItem("Fetch");
         fetch.setOnAction(e -> {
             RepoView repo = activeRepo();
             if (repo != null) {
                 repo.fetch();
             }
         });
-        Button pull = new Button("Pull");
+        MenuItem pull = new MenuItem("Pull");
+        pull.setAccelerator(KeyCombination.keyCombination("Ctrl+L"));
         pull.setOnAction(e -> {
             RepoView repo = activeRepo();
             if (repo != null) {
                 repo.pull();
             }
         });
-        Button push = new Button("Push");
+        MenuItem push = new MenuItem("Push");
+        push.setAccelerator(KeyCombination.keyCombination("Ctrl+P"));
         push.setOnAction(e -> {
             RepoView repo = activeRepo();
             if (repo != null) {
                 repo.push();
             }
         });
-        Button refresh = new Button("Refrescar");
-        refresh.setOnAction(e -> {
+        MenuItem refrescar = new MenuItem("Refrescar");
+        refrescar.setAccelerator(KeyCombination.keyCombination("F5"));
+        refrescar.setOnAction(e -> {
             RepoView repo = activeRepo();
             if (repo != null) {
                 repo.refreshAll();
             }
         });
-        var noRepo = Bindings.isEmpty(repoTabs.getTabs());
-        fetch.disableProperty().bind(noRepo);
-        pull.disableProperty().bind(noRepo);
-        push.disableProperty().bind(noRepo);
-        refresh.disableProperty().bind(noRepo);
-        return new ToolBar(open, clone, new Separator(), fetch, pull, push,
-                new Separator(), refresh);
+        acciones.getItems().addAll(fetch, pull, push, new SeparatorMenuItem(), refrescar);
+        acciones.setOnShowing(e -> {
+            boolean noRepo = activeRepo() == null;
+            fetch.setDisable(noRepo);
+            pull.setDisable(noRepo);
+            push.setDisable(noRepo);
+            refrescar.setDisable(noRepo);
+        });
+
+        Menu ver = new Menu("Ver");
+        CheckMenuItem panelRamas = new CheckMenuItem("Panel de ramas");
+        panelRamas.setSelected(true);
+        CheckMenuItem panelDerecho = new CheckMenuItem("Panel de detalle");
+        panelDerecho.setSelected(true);
+        panelRamas.setOnAction(e -> togglePanels(panelRamas.isSelected(), panelDerecho.isSelected()));
+        panelDerecho.setOnAction(e -> togglePanels(panelRamas.isSelected(), panelDerecho.isSelected()));
+        ver.getItems().addAll(panelRamas, panelDerecho);
+        ver.setOnShowing(e -> {
+            boolean noRepo = activeRepo() == null;
+            panelRamas.setDisable(noRepo);
+            panelDerecho.setDisable(noRepo);
+        });
+
+        Menu ayuda = new Menu("Ayuda");
+        MenuItem acerca = new MenuItem("Acerca de Git History");
+        acerca.setOnAction(e -> new Alert(Alert.AlertType.INFORMATION,
+                "Git History 0.1.0\n\nUn cliente Git visual, libre y sin IA.\nConstruido con JavaFX y JGit.")
+                .showAndWait());
+        ayuda.getItems().add(acerca);
+
+        MenuBar menuBar = new MenuBar(archivo, acciones, ver, ayuda);
+        menuBar.setUseSystemMenuBar(false);
+        return menuBar;
+    }
+
+    /** Muestra u oculta los paneles laterales de la vista del repo activo. */
+    private void togglePanels(boolean showBranches, boolean showDetail) {
+        RepoView repo = activeRepo();
+        if (repo != null) {
+            repo.setPanelsVisible(showBranches, showDetail);
+        }
+    }
+
+    private void closeActiveTab() {
+        Tab tab = repoTabs.getSelectionModel().getSelectedItem();
+        if (tab != null && tab.getUserData() instanceof RepoView view) {
+            view.close();
+            repoTabs.getTabs().remove(tab);
+        }
     }
 
     private Node buildWelcome() {
