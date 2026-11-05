@@ -524,3 +524,21 @@
     -fx-font-family: "JetBrains Mono", "Fira Code", "monospace";
     -fx-font-size: 11px;
 }
+
+/* ── Barra de merge en curso / editor de conflictos ─────── */
+
+.merge-bar {
+    -fx-background-color: #452732;
+    -fx-padding: 6 10 6 10;
+}
+
+.merge-bar-label {
+    -fx-text-fill: #f38ba8;
+    -fx-font-weight: bold;
+    -fx-font-size: 11px;
+}
+
+.conflict-editor {
+    -fx-font-family: "JetBrains Mono", "Fira Code", "monospace";
+    -fx-font-size: 11px;
+}

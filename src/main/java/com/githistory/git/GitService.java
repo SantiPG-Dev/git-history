@@ -262,6 +262,86 @@ public class GitService implements AutoCloseable {
         return git.merge().include(id).call().getMergeStatus().name();
     }
 
+    /** true si hay un merge (o cherry-pick/revert) en curso. */
+    public boolean isMerging() throws IOException {
+        return repo.findRef(Constants.MERGE_HEAD) != null
+                || repo.findRef(Constants.CHERRY_PICK_HEAD) != null
+                || repo.findRef(Constants.REVERT_HEAD) != null;
+    }
+
+    /** Aborta el merge/cherry-pick/revert en curso (equivalente a --abort). */
+    public void abortMerge() throws GitAPIException {
+        git.reset().setMode(ResetCommand.ResetType.HARD).call();
+    }
+
+    /**
+     * Completa el merge en curso creando el commit de merge. Solo válido
+     * cuando no quedan conflictos.
+     */
+    public void completeMerge(String message) throws GitAPIException {
+        var cmd = git.commit();
+        if (message != null && !message.isBlank()) {
+            cmd.setMessage(message);
+        }
+        cmd.call();
+    }
+
+    /** Escribe el contenido resuelto de un archivo en conflicto y lo prepara. */
+    public void resolveConflict(String path, String resolvedText)
+            throws IOException, GitAPIException {
+        Path root = repo.getWorkTree().toPath().toAbsolutePath().normalize();
+        Path resolved = root.resolve(path).normalize();
+        if (!resolved.startsWith(root)) {
+            throw new IOException("Ruta fuera del repositorio: " + path);
+        }
+        Files.writeString(resolved, resolvedText);
+        git.add().addFilepattern(path).call();
+    }
+
+    /** Contenido actual (con marcadores de conflicto) de un archivo. */
+    public String workingFileContent(String path) throws IOException {
+        Path root = repo.getWorkTree().toPath().toAbsolutePath().normalize();
+        Path resolved = root.resolve(path).normalize();
+        if (!resolved.startsWith(root)) {
+            throw new IOException("Ruta fuera del repositorio: " + path);
+        }
+        return Files.readString(resolved);
+    }
+
+    /**
+     * Resuelve automáticamente los marcadores de conflicto quedándose con un
+     * lado: {@code ours} = la versión de HEAD, si no la de la rama mergeada.
+     * Los bloques sin marcadores se conservan.
+     */
+    public static String resolveWithSide(String content, boolean ours) {
+        StringBuilder out = new StringBuilder();
+        String[] lines = content.split("\n", -1);
+        int i = 0;
+        while (i < lines.length) {
+            if (lines[i].startsWith("<<<<<<<")) {
+                StringBuilder our = new StringBuilder();
+                StringBuilder their = new StringBuilder();
+                i++;
+                while (i < lines.length && !lines[i].startsWith("=======")) {
+                    our.append(lines[i++]).append('\n');
+                }
+                i++; // salta =======
+                while (i < lines.length && !lines[i].startsWith(">>>>>>>")) {
+                    their.append(lines[i++]).append('\n');
+                }
+                i++; // salta >>>>>>>
+                out.append(ours ? our : their);
+            } else {
+                out.append(lines[i]);
+                if (i < lines.length - 1) {
+                    out.append('\n');
+                }
+                i++;
+            }
+        }
+        return out.toString();
+    }
+
     /**
      * Diff de un archivo con cambios sin commitear: contra el índice si
      * {@code staged} es falso (cambios sin preparar) o contra HEAD si es

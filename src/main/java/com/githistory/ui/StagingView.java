@@ -3,19 +3,23 @@ package com.githistory.ui;
 import com.githistory.git.GitService;
 import javafx.geometry.Insets;
 import javafx.geometry.Orientation;
+import javafx.geometry.Pos;
 import javafx.scene.control.Alert;
 import javafx.scene.control.Button;
 import javafx.scene.control.ButtonType;
+import javafx.scene.control.ContextMenu;
 import javafx.scene.control.Dialog;
 import javafx.scene.control.Label;
 import javafx.scene.control.ListCell;
 import javafx.scene.control.ListView;
+import javafx.scene.control.MenuItem;
 import javafx.scene.control.SplitPane;
 import javafx.scene.control.TextArea;
 import javafx.scene.control.TextField;
 import javafx.scene.layout.GridPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
+import javafx.scene.layout.Region;
 import javafx.scene.layout.VBox;
 
 /**
@@ -32,6 +36,7 @@ public class StagingView {
     private final TextArea messageArea = new TextArea();
     private final Label diffHeader = section("Cambios del archivo seleccionado");
     private final DiffView diffView = new DiffView();
+    private final HBox mergeBar;
 
     public StagingView(RepoView repo) {
         this.repo = repo;
@@ -123,7 +128,91 @@ public class StagingView {
         split.setOrientation(Orientation.VERTICAL);
         split.setDividerPositions(0.7);
         VBox.setVgrow(split, Priority.ALWAYS);
-        root.getChildren().add(split);
+        mergeBar = buildMergeBar();
+        root.getChildren().addAll(mergeBar, split);
+    }
+
+    private HBox buildMergeBar() {
+        Label label = new Label("Merge en curso: resuelve los conflictos marcados con !");
+        label.getStyleClass().add("merge-bar-label");
+        Button abort = new Button("Abortar merge");
+        abort.setOnAction(e -> abortMerge());
+        Button complete = new Button("Completar merge");
+        complete.getStyleClass().add("accent-button");
+        complete.setOnAction(e -> completeMerge());
+        Region spacer = new Region();
+        HBox.setHgrow(spacer, Priority.ALWAYS);
+        HBox bar = new HBox(8, label, spacer, abort, complete);
+        bar.setAlignment(Pos.CENTER_LEFT);
+        bar.getStyleClass().add("merge-bar");
+        bar.setVisible(false);
+        bar.setManaged(false);
+        return bar;
+    }
+
+    private void abortMerge() {
+        Alert confirm = new Alert(Alert.AlertType.CONFIRMATION,
+                "Se descartará el merge en curso y se volverá al estado anterior. ¿Continuar?");
+        confirm.setHeaderText("Abortar merge");
+        confirm.showAndWait().filter(bt -> bt == ButtonType.OK).ifPresent(bt ->
+                repo.runTask("Abortando merge", p -> {
+                    repo.git().abortMerge();
+                    return null;
+                }, v -> repo.refreshAll()));
+    }
+
+    private void completeMerge() {
+        boolean conflicts = unstagedList.getItems().stream()
+                .anyMatch(en -> en.state().equals("Conflicto"));
+        if (conflicts) {
+            new Alert(Alert.AlertType.WARNING,
+                    "Aún hay conflictos sin resolver.").showAndWait();
+            return;
+        }
+        repo.runTask("Completando merge", p -> {
+            repo.git().completeMerge(null);
+            return null;
+        }, v -> repo.refreshAll());
+    }
+
+    private void showConflictEditor(GitService.StatusEntry entry) {
+        repo.runTask("Cargando conflicto", p -> repo.git().workingFileContent(entry.path()),
+                content -> {
+                    Dialog<ButtonType> dialog = new Dialog<>();
+                    dialog.setTitle("Resolver conflicto: " + entry.path());
+                    dialog.setHeaderText("Edita el contenido o usa un lado; no deben quedar"
+                            + " marcadores <<<<<<<, ======= ni >>>>>>>");
+                    dialog.getDialogPane().getButtonTypes().addAll(
+                            ButtonType.OK, ButtonType.CANCEL);
+                    TextArea editor = new TextArea(content);
+                    editor.getStyleClass().add("conflict-editor");
+                    editor.setPrefSize(720, 420);
+                    Button ours = new Button("Usar nuestra versión");
+                    ours.setOnAction(e ->
+                            editor.setText(GitService.resolveWithSide(editor.getText(), true)));
+                    Button theirs = new Button("Usar su versión");
+                    theirs.setOnAction(e ->
+                            editor.setText(GitService.resolveWithSide(editor.getText(), false)));
+                    HBox tools = new HBox(8, ours, theirs);
+                    VBox box = new VBox(8, tools, editor);
+                    VBox.setVgrow(editor, Priority.ALWAYS);
+                    dialog.getDialogPane().setContent(box);
+                    var result = dialog.showAndWait();
+                    if (result.isEmpty() || result.get() != ButtonType.OK) {
+                        return;
+                    }
+                    String resolvedText = editor.getText();
+                    if (resolvedText.lines().anyMatch(l -> l.startsWith("<<<<<<<")
+                            || l.startsWith(">>>>>>>"))) {
+                        new Alert(Alert.AlertType.WARNING,
+                                "Quedan marcadores de conflicto sin resolver.").showAndWait();
+                        return;
+                    }
+                    repo.runTask("Resolviendo " + entry.path(), p -> {
+                        repo.git().resolveConflict(entry.path(), resolvedText);
+                        return null;
+                    }, v -> repo.refreshAll());
+                });
     }
 
     public VBox getRoot() {
@@ -141,11 +230,24 @@ public class StagingView {
             unstagedList.getItems().clear();
             stagedList.getItems().clear();
             diffView.getItems().clear();
+            mergeBar.setVisible(false);
+            mergeBar.setManaged(false);
             return;
         }
-        repo.runTask("Analizando cambios", p -> repo.git().status(), status -> {
+        repo.runTask("Analizando cambios", p -> {
+            GitService.WorkingTreeStatus status = repo.git().status();
+            boolean merging = repo.git().isMerging();
+            return new Object[]{status, merging};
+        }, result -> {
+            GitService.WorkingTreeStatus status = (GitService.WorkingTreeStatus) result[0];
+            boolean merging = (Boolean) result[1];
             unstagedList.getItems().setAll(status.unstaged());
             stagedList.getItems().setAll(status.staged());
+            mergeBar.setVisible(merging);
+            mergeBar.setManaged(merging);
+            if (merging) {
+                repo.showChangesTab();
+            }
         });
     }
 
@@ -236,10 +338,11 @@ public class StagingView {
         }
     }
 
-    private static class StatusCell extends ListCell<GitService.StatusEntry> {
+    private class StatusCell extends ListCell<GitService.StatusEntry> {
         @Override
         protected void updateItem(GitService.StatusEntry entry, boolean empty) {
             super.updateItem(entry, empty);
+            setContextMenu(null);
             if (empty || entry == null) {
                 setGraphic(null);
                 return;
@@ -256,6 +359,11 @@ public class StagingView {
                 default -> "badge-mod";
             });
             setGraphic(new HBox(6, badge, new Label(entry.path())));
+            if (entry.state().equals("Conflicto")) {
+                MenuItem resolve = new MenuItem("Resolver conflicto…");
+                resolve.setOnAction(e -> showConflictEditor(entry));
+                setContextMenu(new ContextMenu(resolve));
+            }
         }
     }
 }
