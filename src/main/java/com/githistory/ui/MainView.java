@@ -132,6 +132,22 @@ public class MainView {
                 new SeparatorMenuItem(), salir);
 
         Menu acciones = new Menu("Acciones");
+        MenuItem deshacer = new MenuItem("Deshacer");
+        deshacer.setAccelerator(KeyCombination.keyCombination("Ctrl+Z"));
+        deshacer.setOnAction(e -> {
+            RepoView repo = activeRepo();
+            if (repo != null) {
+                repo.undoLast();
+            }
+        });
+        MenuItem rehacer = new MenuItem("Rehacer");
+        rehacer.setAccelerator(KeyCombination.keyCombination("Ctrl+Y"));
+        rehacer.setOnAction(e -> {
+            RepoView repo = activeRepo();
+            if (repo != null) {
+                repo.redoLast();
+            }
+        });
         MenuItem fetch = new MenuItem("Fetch");
         fetch.setOnAction(e -> {
             RepoView repo = activeRepo();
@@ -163,9 +179,12 @@ public class MainView {
                 repo.refreshAll();
             }
         });
-        acciones.getItems().addAll(fetch, pull, push, new SeparatorMenuItem(), refrescar);
+        acciones.getItems().addAll(deshacer, rehacer, new SeparatorMenuItem(),
+                fetch, pull, push, new SeparatorMenuItem(), refrescar);
         acciones.setOnShowing(e -> {
             boolean noRepo = activeRepo() == null;
+            deshacer.setDisable(noRepo);
+            rehacer.setDisable(noRepo);
             fetch.setDisable(noRepo);
             pull.setDisable(noRepo);
             push.setDisable(noRepo);

@@ -9,6 +9,7 @@ import javafx.scene.control.ContextMenu;
 import javafx.scene.control.Label;
 import javafx.scene.control.ListCell;
 import javafx.scene.control.MenuItem;
+import javafx.scene.control.SeparatorMenuItem;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.Region;
@@ -39,6 +40,9 @@ public class HistoryCell extends ListCell<GraphRow> {
     public interface CommitActions {
         void createBranchAt(CommitInfo commit);
         void checkoutCommit(CommitInfo commit);
+        void cherryPick(CommitInfo commit);
+        void revert(CommitInfo commit);
+        void resetToHere(CommitInfo commit);
         void copyHash(CommitInfo commit);
     }
 
@@ -101,9 +105,17 @@ public class HistoryCell extends ListCell<GraphRow> {
         branch.setOnAction(e -> actions.createBranchAt(row.commit()));
         MenuItem checkout = new MenuItem("Checkout (HEAD separado)");
         checkout.setOnAction(e -> actions.checkoutCommit(row.commit()));
+        MenuItem cherryPick = new MenuItem("Cherry-pick en la rama actual");
+        cherryPick.setOnAction(e -> actions.cherryPick(row.commit()));
+        MenuItem revert = new MenuItem("Revertir este commit");
+        revert.setOnAction(e -> actions.revert(row.commit()));
+        MenuItem reset = new MenuItem("Reset rama actual a este commit…");
+        reset.setOnAction(e -> actions.resetToHere(row.commit()));
         MenuItem copy = new MenuItem("Copiar hash");
         copy.setOnAction(e -> actions.copyHash(row.commit()));
-        setContextMenu(new ContextMenu(branch, checkout, copy));
+        setContextMenu(new ContextMenu(branch, checkout,
+                new SeparatorMenuItem(), cherryPick, revert, reset,
+                new SeparatorMenuItem(), copy));
 
         setGraphic(box);
     }

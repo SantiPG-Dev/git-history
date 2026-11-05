@@ -179,11 +179,14 @@ public class BranchPanel {
         } else {
             MenuItem checkout = new MenuItem("Checkout");
             checkout.setOnAction(e -> checkout(branch.shortName()));
+            MenuItem merge = new MenuItem("Mergear en la rama actual");
+            merge.setDisable(branch.current());
+            merge.setOnAction(e -> repo.mergeBranchInto(branch.shortName()));
             MenuItem create = new MenuItem("Nueva rama…");
             create.setOnAction(e -> createBranch());
             MenuItem delete = new MenuItem("Eliminar rama");
             delete.setOnAction(e -> deleteBranch(branch));
-            menu.getItems().addAll(checkout, create, new SeparatorMenuItem(), delete);
+            menu.getItems().addAll(checkout, merge, create, new SeparatorMenuItem(), delete);
         }
         return menu;
     }

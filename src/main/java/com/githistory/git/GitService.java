@@ -228,6 +228,38 @@ public class GitService implements AutoCloseable {
         git.reset().setMode(ResetCommand.ResetType.SOFT).setRef(sha).call();
     }
 
+    /** Reset duro a un commit: mueve HEAD y descarta índice y árbol de trabajo. */
+    public void resetHard(String sha) throws GitAPIException {
+        git.reset().setMode(ResetCommand.ResetType.HARD).setRef(sha).call();
+    }
+
+    /** true si no hay cambios sin commitear (índice ni árbol de trabajo). */
+    public boolean isClean() throws GitAPIException {
+        return git.status().call().isClean();
+    }
+
+    /** Aplica un commit sobre HEAD (cherry-pick). Lanza excepción si hay conflicto. */
+    public void cherryPick(String sha) throws GitAPIException {
+        git.cherryPick().include(ObjectId.fromString(sha)).call();
+    }
+
+    /** Crea un commit que revierte los cambios del commit dado. */
+    public void revert(String sha) throws GitAPIException {
+        git.revert().include(ObjectId.fromString(sha)).call();
+    }
+
+    /**
+     * Mergea una rama en la actual.
+     * @return estado del merge (FAST_FORWARD, MERGED, CONFLICTING, …)
+     */
+    public String merge(String branchName) throws GitAPIException, IOException {
+        ObjectId id = repo.resolve(branchName);
+        if (id == null) {
+            throw new IOException("No se encontró la rama: " + branchName);
+        }
+        return git.merge().include(id).call().getMergeStatus().name();
+    }
+
     /**
      * Diff de un archivo con cambios sin commitear: contra el índice si
      * {@code staged} es falso (cambios sin preparar) o contra HEAD si es

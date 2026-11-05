@@ -109,6 +109,21 @@ public class RepoView {
                     }
 
                     @Override
+                    public void cherryPick(CommitInfo commit) {
+                        RepoView.this.cherryPickCommit(commit);
+                    }
+
+                    @Override
+                    public void revert(CommitInfo commit) {
+                        RepoView.this.revertCommit(commit);
+                    }
+
+                    @Override
+                    public void resetToHere(CommitInfo commit) {
+                        RepoView.this.resetToCommit(commit);
+                    }
+
+                    @Override
                     public void copyHash(CommitInfo commit) {
                         RepoView.this.copyHash(commit);
                     }
@@ -426,7 +441,7 @@ public class RepoView {
                 ? "Nada que rehacer" : "Rehacer: " + redoLabel + " (Ctrl+Y)"));
     }
 
-    private void undoLast() {
+    public void undoLast() {
         UndoManager.Action action = undoManager.peekUndo();
         if (action == null) {
             return;
@@ -441,7 +456,7 @@ public class RepoView {
         });
     }
 
-    private void redoLast() {
+    public void redoLast() {
         UndoManager.Action action = undoManager.peekRedo();
         if (action == null) {
             return;
@@ -459,6 +474,98 @@ public class RepoView {
     private static String abbrev(String message) {
         String first = message.lines().findFirst().orElse(message);
         return first.length() > 40 ? first.substring(0, 40) + "…" : first;
+    }
+
+    private void recordAction(String label, UndoManager.GitAction undo,
+                              UndoManager.GitAction redo) {
+        undoManager.push(new UndoManager.Action(label, undo, redo));
+        updateUndoButtons();
+    }
+
+    // ── Cherry-pick / Revert / Reset / Merge ─────────────────────────────
+
+    private void cherryPickCommit(CommitInfo commit) {
+        runTask("Cherry-pick " + commit.shortId(), p -> {
+            if (!git.isClean()) {
+                throw new IllegalStateException(
+                        "Hay cambios sin commitear. Haz commit o stash antes del cherry-pick.");
+            }
+            String preSha = git.headSha();
+            git.cherryPick(commit.id());
+            return preSha;
+        }, preSha -> {
+            recordAction("Cherry-pick: " + commit.shortId(),
+                    g -> g.resetHard(preSha),
+                    g -> g.cherryPick(commit.id()));
+            refreshAll();
+        });
+    }
+
+    private void revertCommit(CommitInfo commit) {
+        runTask("Revertir " + commit.shortId(), p -> {
+            if (!git.isClean()) {
+                throw new IllegalStateException(
+                        "Hay cambios sin commitear. Haz commit o stash antes de revertir.");
+            }
+            String preSha = git.headSha();
+            git.revert(commit.id());
+            return preSha;
+        }, preSha -> {
+            recordAction("Revert: " + commit.shortId(),
+                    g -> g.resetHard(preSha),
+                    g -> g.revert(commit.id()));
+            refreshAll();
+        });
+    }
+
+    private void resetToCommit(CommitInfo commit) {
+        Alert confirm = new Alert(Alert.AlertType.CONFIRMATION,
+                "La rama actual pasará a apuntar a " + commit.shortId()
+                        + " (reset --hard). Los commits posteriores se podrán"
+                        + " recuperar con Deshacer. ¿Continuar?");
+        confirm.setHeaderText("Reset de rama");
+        confirm.showAndWait().filter(bt -> bt == ButtonType.OK).ifPresent(bt ->
+                runTask("Reset a " + commit.shortId(), p -> {
+                    if (!git.isClean()) {
+                        throw new IllegalStateException(
+                                "Hay cambios sin commitear. Haz commit o stash antes del reset.");
+                    }
+                    String preSha = git.headSha();
+                    git.resetHard(commit.id());
+                    return preSha;
+                }, preSha -> {
+                    recordAction("Reset: " + commit.shortId(),
+                            g -> g.resetHard(preSha),
+                            g -> g.resetHard(commit.id()));
+                    refreshAll();
+                }));
+    }
+
+    /** Mergea una rama local en la rama actual (menú contextual del panel). */
+    public void mergeBranchInto(String branchName) {
+        runTask("Merge " + branchName, p -> {
+            if (!git.isClean()) {
+                throw new IllegalStateException(
+                        "Hay cambios sin commitear. Haz commit o stash antes del merge.");
+            }
+            String preSha = git.headSha();
+            String status = git.merge(branchName);
+            return new String[]{preSha, status};
+        }, result -> {
+            String status = result[1];
+            if (status.startsWith("CONFLICTING") || status.startsWith("FAILED")) {
+                new Alert(Alert.AlertType.WARNING,
+                        "El merge produjo conflictos (" + status + "). Resuélvelos"
+                                + " en la pestaña Cambios, o aborta con «git merge --abort»"
+                                + " desde la terminal.").showAndWait();
+            } else {
+                String preSha = result[0];
+                recordAction("Merge: " + branchName,
+                        g -> g.resetHard(preSha),
+                        g -> g.merge(branchName));
+            }
+            refreshAll();
+        });
     }
 
     // ── Acciones ─────────────────────────────────────────────────────────
