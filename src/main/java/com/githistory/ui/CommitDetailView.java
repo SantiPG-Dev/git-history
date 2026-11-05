@@ -5,9 +5,11 @@ import com.githistory.git.GitService;
 import javafx.geometry.Insets;
 import javafx.geometry.Orientation;
 import javafx.geometry.Pos;
+import javafx.scene.control.ContextMenu;
 import javafx.scene.control.Label;
 import javafx.scene.control.ListCell;
 import javafx.scene.control.ListView;
+import javafx.scene.control.MenuItem;
 import javafx.scene.control.SplitPane;
 import javafx.scene.image.ImageView;
 import javafx.scene.layout.HBox;
@@ -65,6 +67,7 @@ public class CommitDetailView {
                 super.updateItem(file, empty);
                 if (empty || file == null) {
                     setGraphic(null);
+                    setContextMenu(null);
                     return;
                 }
                 Label badge = new Label(switch (file.changeType()) {
@@ -80,6 +83,9 @@ public class CommitDetailView {
                     default -> "badge-mod";
                 });
                 setGraphic(new HBox(6, badge, new Label(file.path())));
+                MenuItem blame = new MenuItem("Ver blame de este archivo");
+                blame.setOnAction(e -> repo.showBlame(file.path(), currentCommitId));
+                setContextMenu(new ContextMenu(blame));
             }
         });
         fileList.getSelectionModel().selectedItemProperty().addListener((obs, o, file) -> {

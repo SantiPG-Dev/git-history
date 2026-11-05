@@ -622,8 +622,29 @@ public class RepoView {
         }
     }
 
+    /** Muestra el blame de un archivo en un commit (menú contextual del detalle). */
+    public void showBlame(String path, String commitId) {
+        runTask("Blame de " + path, p -> git.blame(path, commitId),
+                lines -> BlameView.show(root.getScene().getWindow(), path, lines,
+                        this::selectCommit));
+    }
+
+    /** Selecciona un commit en el historial por su SHA (si está cargado). */
+    public void selectCommit(String sha) {
+        for (int i = 0; i < allRows.size(); i++) {
+            if (allRows.get(i).commit().id().equals(sha)) {
+                historyList.getSelectionModel().select(i);
+                historyList.scrollTo(Math.max(0, i - 5));
+                return;
+            }
+        }
+        statusLabel.setText("El commit " + sha.substring(0, 7)
+                + " no está en el historial cargado");
+    }
+
     /** Mergea una rama local en la rama actual (menú contextual del panel). */
-    public void mergeBranchInto(String branchName) {        runTask("Merge " + branchName, p -> {
+    public void mergeBranchInto(String branchName) {
+        runTask("Merge " + branchName, p -> {
             if (!git.isClean()) {
                 throw new IllegalStateException(
                         "Hay cambios sin commitear. Haz commit o stash antes del merge.");

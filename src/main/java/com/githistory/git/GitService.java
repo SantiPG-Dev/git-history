@@ -7,8 +7,10 @@ import org.eclipse.jgit.api.ListBranchCommand;
 import org.eclipse.jgit.api.ResetCommand;
 import org.eclipse.jgit.api.Status;
 import org.eclipse.jgit.api.errors.GitAPIException;
+import org.eclipse.jgit.blame.BlameResult;
 import org.eclipse.jgit.diff.DiffEntry;
 import org.eclipse.jgit.diff.DiffFormatter;
+import org.eclipse.jgit.diff.RawText;
 import org.eclipse.jgit.lib.Constants;
 import org.eclipse.jgit.lib.ObjectId;
 import org.eclipse.jgit.lib.ObjectReader;
@@ -461,6 +463,37 @@ public class GitService implements AutoCloseable {
                 .call()) {
             // Se cierra el clon; la UI abrirá el repo de nuevo con open().
         }
+    }
+
+    public record BlameLine(String commitId, String shortId, String author,
+                            int lineNumber, String text) {}
+
+    /**
+     * Blame de un archivo en un commit dado (o en HEAD si es null): para cada
+     * línea, el commit y autor que la escribieron.
+     */
+    public List<BlameLine> blame(String path, String sha) throws GitAPIException, IOException {
+        var cmd = git.blame().setFilePath(path);
+        if (sha != null) {
+            cmd.setStartCommit(ObjectId.fromString(sha));
+        }
+        BlameResult result = cmd.call();
+        if (result == null) {
+            throw new IOException("No se pudo hacer blame de: " + path);
+        }
+        RawText contents = result.getResultContents();
+        List<BlameLine> lines = new ArrayList<>();
+        for (int i = 0; i < contents.size(); i++) {
+            RevCommit source = result.getSourceCommit(i);
+            PersonIdent author = result.getSourceAuthor(i);
+            lines.add(new BlameLine(
+                    source != null ? source.getId().getName() : "",
+                    source != null ? source.getId().getName().substring(0, 7) : "???????",
+                    author != null ? author.getName() : "?",
+                    i + 1,
+                    contents.getString(i)));
+        }
+        return lines;
     }
 
     public List<DiffFile> commitDetail(String commitId) throws IOException {

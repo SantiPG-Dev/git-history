@@ -487,3 +487,40 @@
     -fx-text-fill: #6c7086;
     -fx-font-size: 10px;
 }
+
+/* ── Blame ──────────────────────────────────────────────── */
+
+.blame-box {
+    -fx-padding: 10;
+}
+
+.blame-box > .label {
+    -fx-text-fill: #6c7086;
+    -fx-font-size: 10px;
+}
+
+.blame-hash {
+    -fx-font-family: "JetBrains Mono", "Fira Code", "monospace";
+    -fx-font-size: 11px;
+    -fx-min-width: 60;
+}
+
+.blame-author {
+    -fx-text-fill: #cdd6f4;
+    -fx-font-size: 11px;
+    -fx-min-width: 110;
+    -fx-max-width: 110;
+    -fx-ellipsis-string: "…";
+}
+
+.blame-number {
+    -fx-text-fill: #6c7086;
+    -fx-font-family: "JetBrains Mono", "Fira Code", "monospace";
+    -fx-font-size: 11px;
+}
+
+.blame-text {
+    -fx-text-fill: #a6adc8;
+    -fx-font-family: "JetBrains Mono", "Fira Code", "monospace";
+    -fx-font-size: 11px;
+}
