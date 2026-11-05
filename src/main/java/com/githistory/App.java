@@ -31,6 +31,11 @@ public class App extends Application {
                 }
             });
         }
+        Platform.runLater(() -> {
+            for (Path path : AppConfig.load().openRepos()) {
+                mainView.openRepo(path);
+            }
+        });
     }
 
     public static void main(String[] args) {
