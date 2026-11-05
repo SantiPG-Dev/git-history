@@ -231,6 +231,10 @@ public class RepoView {
     }
 
     public void openRepo(Path dir, Runnable onFailure) {
+        openRepo(dir, onFailure, () -> {});
+    }
+
+    public void openRepo(Path dir, Runnable onFailure, Runnable onSuccess) {
         TaskRunner.run(executor, "Abriendo " + dir, statusLabel, progressBar, p -> {
             git.open(dir);
             return null;
@@ -239,6 +243,7 @@ public class RepoView {
             undoManager.clear();
             updateUndoButtons();
             refreshAll();
+            onSuccess.run();
         }, e -> onFailure.run());
     }
 

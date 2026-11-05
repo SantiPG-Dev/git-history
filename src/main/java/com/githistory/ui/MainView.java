@@ -1,5 +1,6 @@
 package com.githistory.ui;
 
+import com.githistory.AppConfig;
 import com.githistory.git.GitService;
 import javafx.application.Platform;
 import javafx.geometry.Pos;
@@ -28,6 +29,7 @@ import javafx.stage.DirectoryChooser;
 import javafx.stage.Stage;
 
 import java.io.File;
+import java.io.IOException;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
@@ -114,11 +116,31 @@ public class MainView {
         Tab tab = new Tab(dir.getFileName().toString());
         tab.setUserData(view);
         tab.setContent(view.getRoot());
-        tab.setOnClosed(e -> view.close());
+        tab.setOnClosed(e -> {
+            view.close();
+            persistOpenRepos();
+        });
         repoTabs.getTabs().add(repoTabs.getTabs().size() - 1, tab);
         repoTabs.getSelectionModel().select(tab);
         stage.setTitle("Git History — " + tab.getText());
-        view.openRepo(dir, () -> repoTabs.getTabs().remove(tab));
+        view.openRepo(dir, () -> repoTabs.getTabs().remove(tab), this::persistOpenRepos);
+    }
+
+    /** Guarda las pestañas de repos abiertas para restaurarlas al arrancar. */
+    private void persistOpenRepos() {
+        List<Path> paths = new ArrayList<>();
+        for (Tab tab : repoTabs.getTabs()) {
+            if (tab.getUserData() instanceof RepoView view && view.getRepoPath() != null) {
+                paths.add(view.getRepoPath());
+            }
+        }
+        AppConfig config = AppConfig.load();
+        config.setOpenRepos(paths);
+        try {
+            config.save();
+        } catch (IOException ignored) {
+            // Sin persistencia: las pestañas no se restaurarán al arrancar.
+        }
     }
 
     private RepoView activeRepo() {
@@ -166,11 +188,14 @@ public class MainView {
         MenuItem cerrar = new MenuItem("Cerrar pestaña");
         cerrar.setAccelerator(KeyCombination.keyCombination("Ctrl+W"));
         cerrar.setOnAction(e -> closeActiveTab());
+        MenuItem prefs = new MenuItem("Preferencias…");
+        prefs.setAccelerator(KeyCombination.keyCombination("Ctrl+,"));
+        prefs.setOnAction(e -> new PreferencesDialog(stage, activeRepo()).showAndWait());
         MenuItem salir = new MenuItem("Salir");
         salir.setAccelerator(KeyCombination.keyCombination("Ctrl+Q"));
         salir.setOnAction(e -> Platform.exit());
         archivo.getItems().addAll(abrir, clonar, new SeparatorMenuItem(), cerrar,
-                new SeparatorMenuItem(), salir);
+                new SeparatorMenuItem(), prefs, new SeparatorMenuItem(), salir);
 
         Menu acciones = new Menu("Acciones");
         MenuItem deshacer = new MenuItem("Deshacer");
@@ -282,6 +307,7 @@ public class MainView {
         if (tab != null && tab.getUserData() instanceof RepoView view) {
             view.close();
             repoTabs.getTabs().remove(tab);
+            persistOpenRepos();
         }
     }
 

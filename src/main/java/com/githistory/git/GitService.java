@@ -456,6 +456,36 @@ public class GitService implements AutoCloseable {
         config.save();
     }
 
+    /** Quita la identidad propia del repo para que vuelva a usarse la global. */
+    public void clearIdentity() throws IOException {
+        StoredConfig config = repo.getConfig();
+        config.unset("user", null, "name");
+        config.unset("user", null, "email");
+        config.save();
+    }
+
+    /** Identidad definida solo en .git/config (sin heredar la global), o null. */
+    public String localIdentityName() {
+        return localConfig().getString("user", null, "name");
+    }
+
+    public String localIdentityEmail() {
+        return localConfig().getString("user", null, "email");
+    }
+
+    private org.eclipse.jgit.lib.Config localConfig() {
+        try {
+            org.eclipse.jgit.storage.file.FileBasedConfig config =
+                    new org.eclipse.jgit.storage.file.FileBasedConfig(
+                            new java.io.File(repo.getDirectory(), "config"),
+                            repo.getFS());
+            config.load();
+            return config;
+        } catch (IOException | org.eclipse.jgit.errors.ConfigInvalidException e) {
+            return new org.eclipse.jgit.lib.Config();
+        }
+    }
+
     /** URL del remoto indicado (normalmente "origin"), o null si no existe. */
     public String remoteUrl(String remote) {
         return repo.getConfig().getString("remote", remote, "url");
