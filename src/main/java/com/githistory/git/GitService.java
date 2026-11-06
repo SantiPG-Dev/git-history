@@ -878,6 +878,50 @@ public class GitService implements AutoCloseable {
         return out;
     }
 
+    // ── Submódulos ───────────────────────────────────────────────────────
+
+    public record SubmoduleInfo(String name, String path, String url, boolean initialized) {}
+
+    /** Submódulos declarados en el índice/.gitmodules del repo. */
+    public List<SubmoduleInfo> submodules() throws IOException, org.eclipse.jgit.errors.ConfigInvalidException {
+        List<SubmoduleInfo> out = new ArrayList<>();
+        try (org.eclipse.jgit.submodule.SubmoduleWalk walk =
+                     org.eclipse.jgit.submodule.SubmoduleWalk.forIndex(repo)) {
+            while (walk.next()) {
+                Path gitMarker = repo.getWorkTree().toPath()
+                        .resolve(walk.getPath()).resolve(".git");
+                out.add(new SubmoduleInfo(
+                        walk.getModuleName(),
+                        walk.getPath(),
+                        walk.getRemoteUrl(),
+                        Files.exists(gitMarker)));
+            }
+        }
+        out.sort(Comparator.comparing(SubmoduleInfo::path));
+        return out;
+    }
+
+    /** Añade un submódulo: lo clona en {@code path} y lo registra. */
+    public void addSubmodule(String url, String path) throws GitAPIException {
+        git.submoduleAdd().setURI(url).setPath(path).call().close();
+    }
+
+    /** Inicializa (si hace falta) y actualiza el submódulo a su commit fijado. */
+    public void updateSubmodule(String path) throws GitAPIException, IOException {
+        git.submoduleInit().addPath(path).call();
+        // Tras un 'git submodule deinit' queda el repo en .git/modules/<path>
+        // pero sin el puntero .git en el worktree; JGit intentaría clonar de
+        // nuevo sobre un directorio ya ocupado. Recreamos el puntero.
+        Path modulesDir = repo.getDirectory().toPath().resolve("modules").resolve(path);
+        Path worktree = repo.getWorkTree().toPath().resolve(path);
+        Path gitFile = worktree.resolve(".git");
+        if (Files.isDirectory(modulesDir.resolve("objects")) && !Files.exists(gitFile)) {
+            Files.createDirectories(worktree);
+            Files.writeString(gitFile, "gitdir: " + worktree.relativize(modulesDir) + "\n");
+        }
+        git.submoduleUpdate().addPath(path).call();
+    }
+
     /** @return false si no había cambios que guardar. */
     public boolean stashCreate(String message) throws GitAPIException {
         var cmd = git.stashCreate();

@@ -32,6 +32,7 @@ public class BranchPanel {
                               List<GitService.BranchInfo> remotes,
                               List<String> tags,
                               List<GitService.StashEntry> stashes,
+                              List<GitService.SubmoduleInfo> submodules,
                               List<GitHubService.PullRequest> pullRequests,
                               List<GitHubService.Issue> issues) {}
 
@@ -82,6 +83,7 @@ public class BranchPanel {
                     repo.git().branches(true),
                     repo.git().tags(),
                     repo.git().stashList(),
+                    repo.git().submodules(),
                     prs, issues);
         }, data -> {
             lastData = data;
@@ -104,9 +106,10 @@ public class BranchPanel {
         TreeItem<Object> tags = section("ETIQUETAS",
                 lastData.tags().stream().filter(t -> matches(t, filter)).map(TagInfo::new).toList());
         TreeItem<Object> stashes = section("STASH", lastData.stashes());
+        TreeItem<Object> submodules = section("SUBMÓDULOS", lastData.submodules());
         locals.setExpanded(true);
         remotes.setExpanded(true);
-        rootItem.getChildren().addAll(locals, remotes, tags, stashes);
+        rootItem.getChildren().addAll(locals, remotes, tags, stashes, submodules);
         if (lastData.pullRequests() != null) {
             rootItem.getChildren().add(section("PULL REQUESTS", lastData.pullRequests()));
         }
@@ -237,6 +240,23 @@ public class BranchPanel {
         return new ContextMenu(apply, pop, new SeparatorMenuItem(), drop);
     }
 
+    private ContextMenu menuForSubmodule(GitService.SubmoduleInfo submodule) {
+        MenuItem update = new MenuItem(submodule.initialized()
+                ? "Actualizar al commit fijado" : "Inicializar y clonar");
+        update.setOnAction(e ->
+                repo.runTask("Actualizando submódulo " + submodule.path(), p -> {
+                    repo.git().updateSubmodule(submodule.path());
+                    return null;
+                }, v -> repo.refreshAll()));
+        MenuItem copyUrl = new MenuItem("Copiar URL");
+        copyUrl.setOnAction(e -> {
+            var content = new javafx.scene.input.ClipboardContent();
+            content.putString(submodule.url());
+            javafx.scene.input.Clipboard.getSystemClipboard().setContent(content);
+        });
+        return new ContextMenu(update, new SeparatorMenuItem(), copyUrl);
+    }
+
     private class BranchCell extends TreeCell<Object> {
         @Override
         protected void updateItem(Object item, boolean empty) {
@@ -276,6 +296,10 @@ public class BranchPanel {
             } else if (item instanceof GitService.StashEntry stash) {
                 setText("stash@{" + stash.index() + "} — " + stash.message());
                 setContextMenu(menuForStash(stash));
+            } else if (item instanceof GitService.SubmoduleInfo submodule) {
+                setText(submodule.path() + (submodule.initialized() ? "" : " (sin inicializar)"));
+                getStyleClass().add("branch-tag");
+                setContextMenu(menuForSubmodule(submodule));
             } else if (item instanceof GitService.BranchInfo branch) {
                 setText(branch.shortName() + (branch.current() ? " ✓" : ""));
                 setContextMenu(menuForBranch(branch));
