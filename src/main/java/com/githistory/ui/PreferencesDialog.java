@@ -17,9 +17,10 @@ import org.eclipse.jgit.util.SystemReader;
 import java.io.IOException;
 
 /**
- * Preferencias de la aplicación. De momento: identidad de autor global
- * (~/.gitconfig) y, si hay un repositorio abierto, una identidad propia
- * para ese repositorio (.git/config).
+ * Preferencias de la aplicación: identidad de autor global (~/.gitconfig),
+ * firma GPG de commits (commit.gpgsign + user.signingkey) y, si hay un
+ * repositorio abierto, una identidad propia para ese repositorio
+ * (.git/config).
  */
 public class PreferencesDialog extends Dialog<Void> {
 
@@ -31,10 +32,14 @@ public class PreferencesDialog extends Dialog<Void> {
 
         String globalName0 = "";
         String globalEmail0 = "";
+        boolean sign0 = false;
+        String key0 = "";
         try {
             StoredConfig global = SystemReader.getInstance().getUserConfig();
             globalName0 = nvl(global.getString("user", null, "name"));
             globalEmail0 = nvl(global.getString("user", null, "email"));
+            sign0 = global.getBoolean("commit", "gpgsign", false);
+            key0 = nvl(global.getString("user", null, "signingkey"));
         } catch (IOException | ConfigInvalidException ignored) {
             // ~/.gitconfig ilegible: se empieza con campos vacíos.
         }
@@ -49,7 +54,20 @@ public class PreferencesDialog extends Dialog<Void> {
 
         Label globalTitle = new Label("Identidad global");
         globalTitle.getStyleClass().add("prefs-section-title");
-        VBox box = new VBox(10, globalTitle, globalGrid);
+
+        CheckBox signBox = new CheckBox("Firmar commits con GPG");
+        signBox.setSelected(sign0);
+        TextField keyField = new TextField(key0);
+        keyField.setPromptText("ID o huella de la clave (vacío = clave por defecto)");
+        keyField.setPrefColumnCount(24);
+        GridPane signGrid = new GridPane();
+        signGrid.setHgap(8);
+        signGrid.setVgap(8);
+        signGrid.addRow(0, new Label("Clave:"), keyField);
+        Label signTitle = new Label("Firma");
+        signTitle.getStyleClass().add("prefs-section-title");
+
+        VBox box = new VBox(10, globalTitle, globalGrid, signTitle, signBox, signGrid);
         box.setPadding(new Insets(12));
 
         CheckBox repoOverride = null;
@@ -106,6 +124,8 @@ public class PreferencesDialog extends Dialog<Void> {
                     StoredConfig global = SystemReader.getInstance().getUserConfig();
                     global.setString("user", null, "name", emptyToNull(globalName.getText()));
                     global.setString("user", null, "email", emptyToNull(globalEmail.getText()));
+                    global.setBoolean("commit", null, "gpgsign", signBox.isSelected());
+                    global.setString("user", null, "signingkey", emptyToNull(keyField.getText()));
                     global.save();
                     if (activeRepo != null) {
                         if (override.isSelected()) {

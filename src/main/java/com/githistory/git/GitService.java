@@ -224,7 +224,21 @@ public class GitService implements AutoCloseable {
     }
 
     public void commit(String message) throws GitAPIException {
-        git.commit().setMessage(message).call();
+        applySigning(git.commit().setMessage(message)).call();
+    }
+
+    /** Aplica la firma GPG si commit.gpgsign está activo (local o global). */
+    private org.eclipse.jgit.api.CommitCommand applySigning(
+            org.eclipse.jgit.api.CommitCommand cmd) {
+        StoredConfig config = repo.getConfig();
+        if (config.getBoolean("commit", "gpgsign", false)) {
+            cmd.setSign(true);
+            String key = config.getString("user", null, "signingkey");
+            if (key != null) {
+                cmd.setSigningKey(key);
+            }
+        }
+        return cmd;
     }
 
     /** Enmienda el último commit; con message null conserva el mensaje original. */
@@ -239,7 +253,7 @@ public class GitService implements AutoCloseable {
                 cmd.setMessage(head.getFullMessage());
             }
         }
-        cmd.call();
+        applySigning(cmd).call();
     }
 
     /** Descarta los cambios de un archivo con seguimiento (checkout -- path). */
