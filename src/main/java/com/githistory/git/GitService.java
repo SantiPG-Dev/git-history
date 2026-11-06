@@ -966,6 +966,25 @@ public class GitService implements AutoCloseable {
         }
     }
 
+    /** Todos los archivos del árbol de un commit (para "ver todos los archivos"). */
+    public List<String> treeFiles(String commitId) throws IOException {
+        List<String> out = new ArrayList<>();
+        try (RevWalk walk = new RevWalk(repo)) {
+            RevTree tree = walk.parseTree(ObjectId.fromString(commitId));
+            try (TreeWalk tw = new TreeWalk(repo)) {
+                tw.addTree(tree);
+                tw.setRecursive(true);
+                while (tw.next()) {
+                    if (!tw.isSubtree()) {
+                        out.add(tw.getPathString());
+                    }
+                }
+            }
+        }
+        out.sort(String::compareTo);
+        return out;
+    }
+
     /** Diff entre dos commits cualesquiera (de oldSha a newSha). */
     public List<DiffFile> diffBetween(String oldSha, String newSha) throws IOException {
         try (RevWalk walk = new RevWalk(repo)) {

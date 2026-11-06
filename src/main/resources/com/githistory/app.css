@@ -577,3 +577,19 @@
     -fx-font-family: "JetBrains Mono", "Fira Code", "monospace";
     -fx-font-size: 11px;
 }
+
+/* ── Toggle Path/Tree del panel de detalle ──────────────── */
+
+.view-toggle {
+    -fx-font-size: 10px;
+    -fx-padding: 2 10 2 10;
+    -fx-background-color: #313244;
+    -fx-text-fill: #a6adc8;
+    -fx-background-radius: 3;
+}
+
+.view-toggle:selected {
+    -fx-background-color: #45475a;
+    -fx-text-fill: #cdd6f4;
+    -fx-font-weight: bold;
+}
