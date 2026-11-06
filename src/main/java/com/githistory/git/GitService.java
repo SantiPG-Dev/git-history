@@ -301,6 +301,63 @@ public class GitService implements AutoCloseable {
         git.reset().setMode(ResetCommand.ResetType.HARD).setRef(sha).call();
     }
 
+    /**
+     * Vista previa del mensaje combinado al fusionar (squash) HEAD con su
+     * padre, o null si HEAD no es fusionable (sin padre, merge o separado).
+     */
+    public String squashPreview() throws IOException {
+        ObjectId headId = repo.resolve(Constants.HEAD);
+        String branch = repo.getBranch();
+        if (headId == null || branch == null) {
+            return null;
+        }
+        try (RevWalk walk = new RevWalk(repo)) {
+            RevCommit head = walk.parseCommit(headId);
+            if (head.getParentCount() != 1) {
+                return null;
+            }
+            RevCommit parent = walk.parseCommit(head.getParent(0).getId());
+            return parent.getFullMessage().trim() + "\n\n" + head.getFullMessage().trim();
+        }
+    }
+
+    /**
+     * Fusiona HEAD con su padre: nuevo commit con el árbol de HEAD, los
+     * padres del padre y el mensaje indicado; la rama se mueve a él.
+     *
+     * @return SHA del commit anterior (para deshacer).
+     */
+    public String squashHead(String message) throws IOException {
+        ObjectId headId = repo.resolve(Constants.HEAD);
+        String branch = repo.getBranch();
+        if (headId == null || branch == null) {
+            throw new IllegalStateException("HEAD separado: no se puede hacer squash");
+        }
+        ObjectId newId;
+        try (RevWalk walk = new RevWalk(repo)) {
+            RevCommit head = walk.parseCommit(headId);
+            if (head.getParentCount() != 1) {
+                throw new IllegalStateException("HEAD debe tener exactamente un padre");
+            }
+            RevCommit parent = walk.parseCommit(head.getParent(0).getId());
+            org.eclipse.jgit.lib.CommitBuilder cb = new org.eclipse.jgit.lib.CommitBuilder();
+            cb.setTreeId(head.getTree());
+            cb.setParentIds(parent.getParents());
+            cb.setAuthor(parent.getAuthorIdent());
+            cb.setCommitter(new PersonIdent(repo));
+            cb.setMessage(message.endsWith("\n") ? message : message + "\n");
+            ObjectInserter inserter = repo.newObjectInserter();
+            newId = inserter.insert(cb);
+            inserter.flush();
+            inserter.close();
+        }
+        org.eclipse.jgit.lib.RefUpdate ru = repo.updateRef(Constants.R_HEADS + branch);
+        ru.setNewObjectId(newId);
+        ru.setRefLogMessage("squash: " + headId.getName().substring(0, 7), false);
+        ru.forceUpdate();
+        return headId.getName();
+    }
+
     /** true si no hay cambios sin commitear (índice ni árbol de trabajo). */
     public boolean isClean() throws GitAPIException {
         return git.status().call().isClean();
