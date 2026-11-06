@@ -276,6 +276,20 @@
     -fx-text-fill: #89b4fa;
 }
 
+.hunk-button {
+    -fx-font-size: 10px;
+    -fx-padding: 1 8 1 8;
+    -fx-background-color: #89b4fa22;
+    -fx-text-fill: #89b4fa;
+    -fx-border-color: #89b4fa55;
+    -fx-border-radius: 3;
+    -fx-background-radius: 3;
+}
+
+.hunk-button:hover {
+    -fx-background-color: #89b4fa44;
+}
+
 .diff-line-meta {
     -fx-text-fill: #6c7086;
     -fx-font-weight: bold;

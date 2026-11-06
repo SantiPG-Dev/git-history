@@ -11,9 +11,16 @@ import org.eclipse.jgit.api.errors.GitAPIException;
 import org.eclipse.jgit.blame.BlameResult;
 import org.eclipse.jgit.diff.DiffEntry;
 import org.eclipse.jgit.diff.DiffFormatter;
+import org.eclipse.jgit.diff.Edit;
 import org.eclipse.jgit.diff.RawText;
+import org.eclipse.jgit.dircache.DirCache;
+import org.eclipse.jgit.dircache.DirCacheEditor;
+import org.eclipse.jgit.dircache.DirCacheEntry;
+import org.eclipse.jgit.dircache.DirCacheIterator;
 import org.eclipse.jgit.lib.Constants;
+import org.eclipse.jgit.lib.FileMode;
 import org.eclipse.jgit.lib.ObjectId;
+import org.eclipse.jgit.lib.ObjectInserter;
 import org.eclipse.jgit.lib.ObjectReader;
 import org.eclipse.jgit.lib.PersonIdent;
 import org.eclipse.jgit.lib.ProgressMonitor;
@@ -31,6 +38,8 @@ import org.eclipse.jgit.transport.CredentialsProvider;
 import org.eclipse.jgit.treewalk.AbstractTreeIterator;
 import org.eclipse.jgit.treewalk.CanonicalTreeParser;
 import org.eclipse.jgit.treewalk.EmptyTreeIterator;
+import org.eclipse.jgit.treewalk.FileTreeIterator;
+import org.eclipse.jgit.treewalk.TreeWalk;
 import org.eclipse.jgit.treewalk.filter.PathFilter;
 import org.eclipse.jgit.util.io.DisabledOutputStream;
 
@@ -41,10 +50,12 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.function.BiConsumer;
 
 /**
@@ -440,6 +451,212 @@ public class GitService implements AutoCloseable {
             return "(archivo demasiado grande para mostrar)";
         }
         return Files.readString(resolved);
+    }
+
+    // ── Staging por hunks ────────────────────────────────────────────────
+
+    /** Un hunk de diff: rangos de líneas en el lado viejo (A) y nuevo (B). */
+    public record Hunk(int beginA, int endA, int beginB, int endB) {}
+
+    /**
+     * Hunks del diff de un archivo (HEAD→working tree, o HEAD→índice si
+     * {@code staged}), en el mismo orden en que aparecen en el diff textual.
+     */
+    public List<Hunk> diffHunks(String path, boolean staged) throws GitAPIException, IOException {
+        ObjectId headId = repo.resolve(Constants.HEAD);
+        try (ObjectReader reader = repo.newObjectReader();
+             DiffFormatter formatter = new DiffFormatter(DisabledOutputStream.INSTANCE)) {
+            formatter.setRepository(repo);
+            formatter.setPathFilter(PathFilter.create(path));
+            AbstractTreeIterator oldTree;
+            if (headId == null) {
+                oldTree = new EmptyTreeIterator();
+            } else {
+                try (RevWalk walk = new RevWalk(repo)) {
+                    oldTree = new CanonicalTreeParser(null, reader, walk.parseTree(headId).getId());
+                }
+            }
+            AbstractTreeIterator newTree = staged
+                    ? new DirCacheIterator(repo.readDirCache())
+                    : new FileTreeIterator(repo);
+            List<DiffEntry> entries = formatter.scan(oldTree, newTree);
+            if (entries.isEmpty()) {
+                return List.of();
+            }
+            // Agrupa edits en hunks como hace el diff textual: los edits se
+            // fusionan si hay 2*contexto (6) líneas o menos entre ellos.
+            List<Hunk> hunks = new ArrayList<>();
+            int beginA = -1, endA = 0, beginB = -1, endB = 0;
+            for (Edit edit : formatter.toFileHeader(entries.get(0)).toEditList()) {
+                if (beginA >= 0 && edit.getBeginA() - endA <= 6) {
+                    endA = Math.max(endA, edit.getEndA());
+                    endB = Math.max(endB, edit.getEndB());
+                    continue;
+                }
+                if (beginA >= 0) {
+                    hunks.add(new Hunk(beginA, endA, beginB, endB));
+                }
+                beginA = edit.getBeginA();
+                endA = edit.getEndA();
+                beginB = edit.getBeginB();
+                endB = edit.getEndB();
+            }
+            if (beginA >= 0) {
+                hunks.add(new Hunk(beginA, endA, beginB, endB));
+            }
+            return hunks;
+        }
+    }
+
+    /** Prepara solo los hunks indicados del archivo en el índice. */
+    public void stageHunks(String path, List<Integer> hunkIndexes) throws GitAPIException, IOException {
+        String head = headFileContent(path);
+        String work = workingFileContent(path);
+        List<Hunk> hunks = diffHunks(path, false);
+        List<String> aLines = splitLines(head);
+        List<String> bLines = splitLines(work);
+        List<String> result = new ArrayList<>();
+        int aPos = 0;
+        for (int i = 0; i < hunks.size(); i++) {
+            Hunk h = hunks.get(i);
+            result.addAll(aLines.subList(aPos, h.beginA()));
+            result.addAll(hunkIndexes.contains(i)
+                    ? bLines.subList(h.beginB(), h.endB())
+                    : aLines.subList(h.beginA(), h.endA()));
+            aPos = h.endA();
+        }
+        result.addAll(aLines.subList(aPos, aLines.size()));
+        setIndexContent(path, joinLines(result, work));
+    }
+
+    /** Retira del índice los hunks indicados (vuelven a ser cambios sin preparar). */
+    public void unstageHunks(String path, List<Integer> hunkIndexes) throws GitAPIException, IOException {
+        String head = headFileContent(path);
+        String index = indexFileContent(path);
+        if (index == null) {
+            return;
+        }
+        List<Hunk> hunks = diffHunks(path, true);
+        List<String> aLines = splitLines(head);
+        List<String> bLines = splitLines(index);
+        List<String> result = new ArrayList<>();
+        int bPos = 0;
+        for (int i = 0; i < hunks.size(); i++) {
+            Hunk h = hunks.get(i);
+            result.addAll(bLines.subList(bPos, h.beginB()));
+            result.addAll(hunkIndexes.contains(i)
+                    ? aLines.subList(h.beginA(), h.endA())
+                    : bLines.subList(h.beginB(), h.endB()));
+            bPos = h.endB();
+        }
+        result.addAll(bLines.subList(bPos, bLines.size()));
+        setIndexContent(path, joinLines(result, index));
+    }
+
+    /** Contenido del archivo en HEAD, o null si no existe allí. */
+    public String headFileContent(String path) throws IOException {
+        HeadEntry head = headFileEntry(path);
+        return head == null ? null : readBlob(head.id());
+    }
+
+    private record HeadEntry(ObjectId id, FileMode mode) {}
+
+    /** Entrada del archivo en el árbol de HEAD, o null si no existe allí. */
+    private HeadEntry headFileEntry(String path) throws IOException {
+        ObjectId head = repo.resolve(Constants.HEAD);
+        if (head == null) {
+            return null;
+        }
+        try (RevWalk walk = new RevWalk(repo)) {
+            RevTree tree = walk.parseTree(head);
+            try (TreeWalk tw = TreeWalk.forPath(repo, path, tree)) {
+                if (tw == null) {
+                    return null;
+                }
+                return new HeadEntry(tw.getObjectId(0), tw.getFileMode(0));
+            }
+        }
+    }
+
+    private String readBlob(ObjectId id) throws IOException {
+        return new String(repo.open(id).getBytes(), StandardCharsets.UTF_8);
+    }
+
+    /** Contenido del archivo en el índice, o null si no está. */
+    private String indexFileContent(String path) throws IOException {
+        DirCacheEntry entry = repo.readDirCache().getEntry(path);
+        if (entry == null) {
+            return null;
+        }
+        return readBlob(entry.getObjectId());
+    }
+
+    /**
+     * Escribe contenido en el índice. Si coincide con HEAD restaura la entrada
+     * de HEAD (o la borra si el archivo no existía en HEAD, p. ej. un nuevo).
+     */
+    private void setIndexContent(String path, String content) throws IOException {
+        HeadEntry head = headFileEntry(path);
+        String headContent = head == null ? null : readBlob(head.id());
+        DirCache cache = repo.lockDirCache();
+        try {
+            DirCacheEditor editor = cache.editor();
+            if (Objects.equals(content, headContent)) {
+                if (head == null) {
+                    editor.add(new DirCacheEditor.DeletePath(path));
+                } else {
+                    editor.add(new DirCacheEditor.PathEdit(path) {
+                        @Override
+                        public void apply(DirCacheEntry entry) {
+                            entry.setObjectId(head.id());
+                            entry.setFileMode(head.mode());
+                        }
+                    });
+                }
+            } else {
+                byte[] bytes = content.getBytes(StandardCharsets.UTF_8);
+                ObjectInserter inserter = repo.newObjectInserter();
+                ObjectId blob = inserter.insert(Constants.OBJ_BLOB, bytes);
+                inserter.flush();
+                inserter.close();
+                editor.add(new DirCacheEditor.PathEdit(path) {
+                    @Override
+                    public void apply(DirCacheEntry entry) {
+                        entry.setObjectId(blob);
+                        entry.setFileMode(FileMode.REGULAR_FILE);
+                        entry.setLength(bytes.length);
+                    }
+                });
+            }
+            if (!editor.commit()) {
+                throw new IOException("No se pudo actualizar el índice para " + path);
+            }
+        } finally {
+            cache.unlock();
+        }
+    }
+
+    private static List<String> splitLines(String content) {
+        if (content == null || content.isEmpty()) {
+            return new ArrayList<>();
+        }
+        List<String> lines = new ArrayList<>(Arrays.asList(content.split("\n", -1)));
+        if (!lines.isEmpty() && lines.get(lines.size() - 1).isEmpty()) {
+            lines.remove(lines.size() - 1);
+        }
+        return lines;
+    }
+
+    /** Une líneas conservando si el original terminaba (o no) en nueva línea. */
+    private static String joinLines(List<String> lines, String original) {
+        if (lines.isEmpty()) {
+            return "";
+        }
+        String joined = String.join("\n", lines);
+        if (original != null && original.endsWith("\n")) {
+            return joined + "\n";
+        }
+        return joined;
     }
 
     public String identityName() {
