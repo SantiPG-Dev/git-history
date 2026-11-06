@@ -260,17 +260,37 @@ public class StagingView {
     private void showDiff(GitService.StatusEntry entry, boolean staged) {
         diffHeader.setText("Cambios: " + entry.path());
         diffView.setDiff("Cargando…");
+        boolean hunkable = entry.state().equals("Modificado");
         repo.runTask("Cargando cambios", p -> {
             if (!staged && entry.state().equals("Nuevo")) {
                 try {
-                    return repo.git().untrackedContent(entry.path());
+                    return new Object[]{repo.git().untrackedContent(entry.path()), false};
                 } catch (Exception e) {
-                    return "(no se pudo leer el archivo)";
+                    return new Object[]{"(no se pudo leer el archivo)", false};
                 }
             }
             String diff = repo.git().workingTreeDiff(entry.path(), staged);
-            return diff.isBlank() ? "(sin diff disponible)" : diff;
-        }, diffView::setDiff);
+            return new Object[]{diff.isBlank() ? "(sin diff disponible)" : diff, hunkable};
+        }, result -> {
+            String diff = (String) result[0];
+            if ((Boolean) result[1] && !diff.startsWith("(")) {
+                diffView.setDiff(diff, staged ? "Retirar hunk" : "Preparar hunk",
+                        hunk -> applyHunk(entry, staged, hunk));
+            } else {
+                diffView.setDiff(diff);
+            }
+        });
+    }
+
+    private void applyHunk(GitService.StatusEntry entry, boolean staged, int hunkIndex) {
+        repo.runTask((staged ? "Retirando" : "Preparando") + " hunk de " + entry.path(), p -> {
+            if (staged) {
+                repo.git().unstageHunks(entry.path(), java.util.List.of(hunkIndex));
+            } else {
+                repo.git().stageHunks(entry.path(), java.util.List.of(hunkIndex));
+            }
+            return null;
+        }, v -> refresh());
     }
 
     private void stage(GitService.StatusEntry entry) {
