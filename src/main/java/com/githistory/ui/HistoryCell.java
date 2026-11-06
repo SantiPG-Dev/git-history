@@ -46,6 +46,7 @@ public class HistoryCell extends ListCell<GraphRow> {
         void cherryPick(CommitInfo commit);
         void revert(CommitInfo commit);
         void resetToHere(CommitInfo commit);
+        void squashWithParent(CommitInfo commit);
         void copyHash(CommitInfo commit);
     }
 
@@ -119,10 +120,12 @@ public class HistoryCell extends ListCell<GraphRow> {
         revert.setOnAction(e -> actions.revert(row.commit()));
         MenuItem reset = new MenuItem("Reset rama actual a este commit…");
         reset.setOnAction(e -> actions.resetToHere(row.commit()));
+        MenuItem squash = new MenuItem("Fusionar con el padre (squash)");
+        squash.setOnAction(e -> actions.squashWithParent(row.commit()));
         MenuItem copy = new MenuItem("Copiar hash");
         copy.setOnAction(e -> actions.copyHash(row.commit()));
         setContextMenu(new ContextMenu(branch, tag, checkout,
-                new SeparatorMenuItem(), cherryPick, revert, reset,
+                new SeparatorMenuItem(), cherryPick, revert, squash, reset,
                 new SeparatorMenuItem(), copy));
 
         setGraphic(box);

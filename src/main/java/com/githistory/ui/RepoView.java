@@ -27,6 +27,7 @@ import javafx.scene.control.SeparatorMenuItem;
 import javafx.scene.control.SplitPane;
 import javafx.scene.control.Tab;
 import javafx.scene.control.TabPane;
+import javafx.scene.control.TextArea;
 import javafx.scene.control.TextField;
 import javafx.scene.control.TextInputDialog;
 import javafx.scene.control.ToggleGroup;
@@ -138,6 +139,11 @@ public class RepoView {
                     @Override
                     public void resetToHere(CommitInfo commit) {
                         RepoView.this.resetToCommit(commit);
+                    }
+
+                    @Override
+                    public void squashWithParent(CommitInfo commit) {
+                        RepoView.this.squashWithParent(commit);
                     }
 
                     @Override
@@ -637,6 +643,57 @@ public class RepoView {
                             g -> g.resetHard(commit.id()));
                     refreshAll();
                 }));
+    }
+
+    /** Fusiona HEAD con su padre (squash), con mensaje editable. */
+    private void squashWithParent(CommitInfo commit) {
+        runTask("Comprobando squash", p -> {
+            String head = git.headSha();
+            String preview = git.squashPreview();
+            return new String[]{head, preview};
+        }, result -> {
+            String head = result[0];
+            String preview = result[1];
+            if (preview == null) {
+                new Alert(Alert.AlertType.WARNING,
+                        "Solo se puede fusionar HEAD (con exactamente un padre)"
+                                + " estando en una rama.").showAndWait();
+                return;
+            }
+            if (!commit.id().equals(head)) {
+                new Alert(Alert.AlertType.WARNING,
+                        "Solo se puede fusionar el último commit (HEAD) con su padre.")
+                        .showAndWait();
+                return;
+            }
+            Dialog<ButtonType> dialog = new Dialog<>();
+            dialog.setTitle("Squash");
+            dialog.setHeaderText("Fusionar " + commit.shortId()
+                    + " con su padre. Mensaje del commit resultante:");
+            dialog.getDialogPane().getButtonTypes().addAll(ButtonType.OK, ButtonType.CANCEL);
+            TextArea messageArea = new TextArea(preview);
+            messageArea.getStyleClass().add("conflict-editor");
+            messageArea.setPrefSize(520, 200);
+            dialog.getDialogPane().setContent(messageArea);
+            var result2 = dialog.showAndWait();
+            if (result2.isEmpty() || result2.get() != ButtonType.OK
+                    || messageArea.getText().isBlank()) {
+                return;
+            }
+            String message = messageArea.getText().trim();
+            runTask("Fusionando commits", p -> {
+                if (!git.isClean()) {
+                    throw new IllegalStateException(
+                            "Hay cambios sin commitear. Haz commit o stash antes del squash.");
+                }
+                return git.squashHead(message);
+            }, oldSha -> {
+                recordAction("Squash: " + commit.shortId(),
+                        g -> g.resetHard(oldSha),
+                        g -> g.squashHead(message));
+                refreshAll();
+            });
+        });
     }
 
     /** Crea una etiqueta en un commit (menú contextual del grafo). */
