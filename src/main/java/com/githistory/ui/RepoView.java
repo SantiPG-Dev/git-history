@@ -90,6 +90,8 @@ public class RepoView {
 
     private int historyMaxLanes = 1;
     private Path repoPath;
+    private TerminalView terminalView;
+    private VBox centerWrap;
     private List<GraphRow> allRows = List.of();
     private List<GitService.BranchInfo> lastBranches = List.of();
     private List<Integer> searchHits = List.of();
@@ -173,7 +175,9 @@ public class RepoView {
         split.setDividerPositions(0.16, 0.58);
 
         root.setTop(buildActionBar());
-        root.setCenter(split);
+        centerWrap = new VBox(split);
+        VBox.setVgrow(split, Priority.ALWAYS);
+        root.setCenter(centerWrap);
         root.setBottom(buildStatusBar());
 
         root.addEventFilter(KeyEvent.KEY_PRESSED, e -> {
@@ -222,6 +226,9 @@ public class RepoView {
     }
 
     public void close() {
+        if (terminalView != null) {
+            terminalView.dispose();
+        }
         executor.shutdownNow();
         git.close();
     }
@@ -358,8 +365,8 @@ public class RepoView {
         pop.setOnAction(e -> stashPop());
 
         Button terminal = new Button("Terminal");
-        terminal.setTooltip(new Tooltip("Abrir una terminal en este repositorio"));
-        terminal.setOnAction(e -> openTerminal());
+        terminal.setTooltip(new Tooltip("Terminal integrada en este repositorio"));
+        terminal.setOnAction(e -> toggleTerminal());
 
         searchField.setPromptText("Buscar commits…");
         searchField.getStyleClass().add("search-field");
@@ -822,6 +829,22 @@ public class RepoView {
             }
             refreshAll();
         });
+    }
+
+    /** Muestra u oculta la terminal integrada en la parte inferior. */
+    public void toggleTerminal() {
+        if (repoPath == null) {
+            return;
+        }
+        if (terminalView == null) {
+            terminalView = new TerminalView(repoPath, this::refreshAll, this::toggleTerminal);
+            terminalView.setVisible(false);
+            terminalView.setManaged(false);
+            centerWrap.getChildren().add(terminalView);
+        }
+        boolean show = !terminalView.isVisible();
+        terminalView.setVisible(show);
+        terminalView.setManaged(show);
     }
 
     public void openTerminal() {

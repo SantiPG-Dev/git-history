@@ -556,3 +556,24 @@
     -fx-font-family: "JetBrains Mono", "Fira Code", "monospace";
     -fx-font-size: 11px;
 }
+
+/* ── Terminal integrada ─────────────────────────────────── */
+
+.terminal-panel {
+    -fx-background-color: #111118;
+    -fx-border-color: #313244 transparent transparent transparent;
+}
+
+.terminal-output {
+    -fx-font-family: "JetBrains Mono", "Fira Code", "monospace";
+    -fx-font-size: 11px;
+}
+
+.terminal-output .content {
+    -fx-background-color: #111118;
+}
+
+.terminal-input {
+    -fx-font-family: "JetBrains Mono", "Fira Code", "monospace";
+    -fx-font-size: 11px;
+}
