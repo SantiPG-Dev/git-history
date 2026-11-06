@@ -165,7 +165,8 @@ public class MainView {
             commands.add(new CommandPalette.Command("Nueva rama…", repo::createBranch));
             commands.add(new CommandPalette.Command("Guardar cambios en stash", repo::stash));
             commands.add(new CommandPalette.Command("Pop de stash", repo::stashPop));
-            commands.add(new CommandPalette.Command("Abrir terminal", repo::openTerminal));
+            commands.add(new CommandPalette.Command("Terminal integrada", repo::toggleTerminal));
+            commands.add(new CommandPalette.Command("Terminal externa", repo::openTerminal));
             commands.add(new CommandPalette.Command("Reflog de HEAD…", repo::openReflog));
             commands.add(new CommandPalette.Command("Gestionar remotos…", repo::openRemotes));
             for (GitService.BranchInfo b : repo.knownBranches()) {
