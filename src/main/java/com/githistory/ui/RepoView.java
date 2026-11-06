@@ -237,6 +237,10 @@ public class RepoView {
         TaskRunner.run(executor, description, statusLabel, progressBar, work, onSuccess);
     }
 
+    public org.eclipse.jgit.transport.CredentialsProvider credentialsProvider() {
+        return credentials;
+    }
+
     public void openRepo(Path dir, Runnable onFailure) {
         openRepo(dir, onFailure, () -> {});
     }
@@ -328,12 +332,31 @@ public class RepoView {
     }
 
     public void push() {
-        if (git.isOpen()) {
-            runTask("Push en curso…", p -> {
-                git.push(credentials, p);
-                return null;
-            }, v -> refreshAll());
+        if (!git.isOpen()) {
+            return;
         }
+        String branch = null;
+        try {
+            branch = git.currentBranch();
+        } catch (IOException ignored) {
+            // Sin rama activa.
+        }
+        if (branch != null && !git.hasUpstream(branch) && git.remoteUrl("origin") != null) {
+            Alert confirm = new Alert(Alert.AlertType.CONFIRMATION,
+                    "La rama «" + branch + "» no tiene upstream. ¿Publicarla en origin?");
+            confirm.setHeaderText("Publicar rama");
+            String current = branch;
+            confirm.showAndWait().filter(bt -> bt == ButtonType.OK).ifPresent(bt ->
+                    runTask("Publicando " + current, p -> {
+                        git.pushSetUpstream(current, "origin", credentials, p);
+                        return null;
+                    }, v -> refreshAll()));
+            return;
+        }
+        runTask("Push en curso…", p -> {
+            git.push(credentials, p);
+            return null;
+        }, v -> refreshAll());
     }
 
     // ── Barra de acciones ────────────────────────────────────────────────

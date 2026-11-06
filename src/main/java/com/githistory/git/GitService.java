@@ -970,6 +970,28 @@ public class GitService implements AutoCloseable {
         git.push().setCredentialsProvider(credentials).setProgressMonitor(monitor(progress)).call();
     }
 
+    /** ¿La rama tiene upstream configurado (branch.<name>.remote/merge)? */
+    public boolean hasUpstream(String branch) {
+        StoredConfig config = repo.getConfig();
+        return config.getString("branch", branch, "remote") != null
+                && config.getString("branch", branch, "merge") != null;
+    }
+
+    /** Push de una rama al remoto y la configura como upstream (-u). */
+    public void pushSetUpstream(String branch, String remote, CredentialsProvider credentials,
+                                BiConsumer<String, Double> progress)
+            throws GitAPIException, IOException {
+        String ref = Constants.R_HEADS + branch;
+        git.push().setRemote(remote)
+                .setRefSpecs(new org.eclipse.jgit.transport.RefSpec(ref + ":" + ref))
+                .setCredentialsProvider(credentials)
+                .setProgressMonitor(monitor(progress)).call();
+        StoredConfig config = repo.getConfig();
+        config.setString("branch", branch, "remote", remote);
+        config.setString("branch", branch, "merge", ref);
+        config.save();
+    }
+
     public static void cloneRepo(String url, Path directory, CredentialsProvider credentials,
                                  BiConsumer<String, Double> progress) throws GitAPIException {
         try (Git ignored = Git.cloneRepository()

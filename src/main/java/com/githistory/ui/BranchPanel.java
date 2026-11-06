@@ -223,11 +223,25 @@ public class BranchPanel {
             rebase.setOnAction(e -> repo.rebaseOnto(branch.shortName()));
             MenuItem create = new MenuItem("Nueva rama…");
             create.setOnAction(e -> createBranch());
+            menu.getItems().addAll(checkout, merge, rebase, create);
+            if (!repo.git().hasUpstream(branch.shortName())
+                    && repo.git().remoteUrl("origin") != null) {
+                MenuItem publish = new MenuItem("Publicar en origin");
+                publish.setOnAction(e -> publishBranch(branch.shortName()));
+                menu.getItems().add(publish);
+            }
             MenuItem delete = new MenuItem("Eliminar rama");
             delete.setOnAction(e -> deleteBranch(branch));
-            menu.getItems().addAll(checkout, merge, rebase, create, new SeparatorMenuItem(), delete);
+            menu.getItems().addAll(new SeparatorMenuItem(), delete);
         }
         return menu;
+    }
+
+    private void publishBranch(String name) {
+        repo.runTask("Publicando " + name, p -> {
+            repo.git().pushSetUpstream(name, "origin", repo.credentialsProvider(), p);
+            return null;
+        }, v -> repo.refreshAll());
     }
 
     private ContextMenu menuForStash(GitService.StashEntry entry) {
