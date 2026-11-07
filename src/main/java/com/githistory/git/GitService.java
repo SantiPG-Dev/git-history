@@ -458,6 +458,146 @@ public class GitService implements AutoCloseable {
         return headId.getName();
     }
 
+    /**
+     * Commits entre {@code upstreamSha} (excluido) y HEAD, de más nuevo a
+     * más antiguo, para planificar un rebase interactivo.
+     */
+    public List<CommitInfo> rebaseRange(String upstreamSha)
+            throws IOException, GitAPIException {
+        List<CommitInfo> out = new ArrayList<>();
+        ObjectId headId = repo.resolve(Constants.HEAD);
+        ObjectId upstream = ObjectId.fromString(upstreamSha);
+        try (RevWalk walk = new RevWalk(repo)) {
+            walk.markStart(walk.parseCommit(headId));
+            walk.markUninteresting(walk.parseCommit(upstream));
+            for (RevCommit c : walk) {
+                List<String> parents = new ArrayList<>();
+                for (RevCommit parent : c.getParents()) {
+                    parents.add(parent.getId().getName());
+                }
+                PersonIdent author = c.getAuthorIdent();
+                out.add(new CommitInfo(
+                        c.getId().getName(),
+                        c.getId().getName().substring(0, 7),
+                        c.getShortMessage(),
+                        c.getFullMessage(),
+                        author.getName(),
+                        author.getEmailAddress(),
+                        author.getWhen().toInstant(),
+                        parents,
+                        List.of()));
+            }
+        }
+        return out;
+    }
+
+    public record RebasePlanEntry(String sha, String action, String message) {}
+
+    /**
+     * Rebase interactivo: reescribe los commits entre {@code upstreamSha}
+     * (excluido) y HEAD según el plan, dado en orden de aplicación (el
+     * commit más antiguo primero). Acciones: "pick", "reword" (usa el
+     * mensaje de la entrada), "squash" (fusiona con el anterior) y "drop"
+     * (elimina el commit).
+     *
+     * @return SHA de HEAD anterior (para deshacer con resetHard), o null si
+     *         el rebase quedó detenido por conflictos.
+     */
+    public String interactiveRebase(String upstreamSha, List<RebasePlanEntry> plan)
+            throws IOException, GitAPIException {
+        ObjectId headId = repo.resolve(Constants.HEAD);
+        String branch = repo.getBranch();
+        if (headId == null || branch == null) {
+            throw new IllegalStateException("HEAD separado: no se puede rebasar");
+        }
+        String oldHead = headId.getName();
+        ObjectId upstream = ObjectId.fromString(upstreamSha);
+        // Mensajes originales de los commits con reword: el handler recibe
+        // solo el mensaje (no el sha), así que emparejamos por contenido.
+        // JGit también llama a modifyCommitMessage al cerrar un squash, y un
+        // amend con mensaje idéntico falla con NO_CHANGE: por eso el reword
+        // sin cambios se degrada a pick.
+        Map<String, String> effectiveAction = new LinkedHashMap<>();
+        java.util.ArrayDeque<String[]> rewordMessages = new java.util.ArrayDeque<>();
+        try (RevWalk walk = new RevWalk(repo)) {
+            for (RebasePlanEntry entry : plan) {
+                String action = entry.action();
+                if ("reword".equals(action)) {
+                    String original = walk.parseCommit(
+                            ObjectId.fromString(entry.sha())).getFullMessage().trim();
+                    String wanted = entry.message() == null
+                            ? "" : entry.message().trim();
+                    if (wanted.isEmpty() || wanted.equals(original)) {
+                        action = "pick";
+                    } else {
+                        String m = wanted.endsWith("\n") ? wanted : wanted + "\n";
+                        rewordMessages.add(new String[]{original, m});
+                    }
+                }
+                effectiveAction.put(entry.sha(), action);
+            }
+        }
+        RebaseResult result = git.rebase().setUpstream(upstream).runInteractively(
+                new RebaseCommand.InteractiveHandler() {
+                    @Override
+                    public void prepareSteps(List<RebaseTodoLine> steps) {
+                        Map<String, RebaseTodoLine> remaining = new LinkedHashMap<>();
+                        for (RebaseTodoLine step : steps) {
+                            remaining.put(step.getCommit().name(), step);
+                        }
+                        List<RebaseTodoLine> ordered = new ArrayList<>();
+                        for (RebasePlanEntry entry : plan) {
+                            String key = remaining.keySet().stream()
+                                    .filter(k -> entry.sha().startsWith(k))
+                                    .findFirst().orElse(null);
+                            if (key == null) {
+                                continue;
+                            }
+                            RebaseTodoLine step = remaining.remove(key);
+                            try {
+                                switch (effectiveAction.get(entry.sha())) {
+                                    case "reword" ->
+                                        step.setAction(RebaseTodoLine.Action.REWORD);
+                                    case "squash" ->
+                                        step.setAction(RebaseTodoLine.Action.SQUASH);
+                                    case "drop" -> {
+                                        // No se añade a la lista: se elimina.
+                                        continue;
+                                    }
+                                    default ->
+                                        step.setAction(RebaseTodoLine.Action.PICK);
+                                }
+                            } catch (IllegalTodoFileModification e) {
+                                throw new IllegalStateException(
+                                        "No se puede aplicar la acción del plan", e);
+                            }
+                            ordered.add(step);
+                        }
+                        ordered.addAll(remaining.values());
+                        steps.clear();
+                        steps.addAll(ordered);
+                    }
+
+                    @Override
+                    public String modifyCommitMessage(String oldMessage) {
+                        String[] head = rewordMessages.peek();
+                        if (head != null && oldMessage.trim().equals(head[0])) {
+                            rewordMessages.poll();
+                            return head[1];
+                        }
+                        return oldMessage;
+                    }
+                }).call();
+        if (result.getStatus() == RebaseResult.Status.STOPPED) {
+            return null; // Conflictos: la UI ofrece resolverlos o abortar.
+        }
+        if (!result.getStatus().isSuccessful()) {
+            throw new IllegalStateException(
+                    "El rebase interactivo no completó: " + result.getStatus());
+        }
+        return oldHead;
+    }
+
     /** true si no hay cambios sin commitear (índice ni árbol de trabajo). */
     public boolean isClean() throws GitAPIException {
         return git.status().call().isClean();

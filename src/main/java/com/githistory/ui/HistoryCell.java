@@ -48,6 +48,7 @@ public class HistoryCell extends ListCell<GraphRow> {
         void resetToHere(CommitInfo commit);
         void squashWithParent(CommitInfo commit);
         void rewordCommit(CommitInfo commit);
+        void interactiveRebase(CommitInfo commit);
         void copyHash(CommitInfo commit);
     }
 
@@ -125,10 +126,13 @@ public class HistoryCell extends ListCell<GraphRow> {
         squash.setOnAction(e -> actions.squashWithParent(row.commit()));
         MenuItem reword = new MenuItem("Editar mensaje del commit…");
         reword.setOnAction(e -> actions.rewordCommit(row.commit()));
+        MenuItem interactive = new MenuItem("Rebase interactivo desde aquí…");
+        interactive.setOnAction(e -> actions.interactiveRebase(row.commit()));
         MenuItem copy = new MenuItem("Copiar hash");
         copy.setOnAction(e -> actions.copyHash(row.commit()));
         setContextMenu(new ContextMenu(branch, tag, checkout,
-                new SeparatorMenuItem(), cherryPick, revert, squash, reword, reset,
+                new SeparatorMenuItem(), cherryPick, revert, squash, reword,
+                interactive, reset,
                 new SeparatorMenuItem(), copy));
 
         setGraphic(box);

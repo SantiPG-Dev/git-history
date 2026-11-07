@@ -152,6 +152,11 @@ public class RepoView {
                     }
 
                     @Override
+                    public void interactiveRebase(CommitInfo commit) {
+                        RepoView.this.interactiveRebase(commit);
+                    }
+
+                    @Override
                     public void copyHash(CommitInfo commit) {
                         RepoView.this.copyHash(commit);
                     }
@@ -749,6 +754,149 @@ public class RepoView {
                     g -> g.rewordCommit(commit.id(), message));
             refreshAll();
         });
+    }
+
+    /** Rebase interactivo sobre los commits posteriores al seleccionado. */
+    private void interactiveRebase(CommitInfo commit) {
+        runTask("Cargando rango de rebase", p -> git.rebaseRange(commit.id()),
+                range -> {
+                    if (range.isEmpty()) {
+                        new Alert(Alert.AlertType.WARNING,
+                                "No hay commits posteriores a " + commit.shortId()
+                                        + " en la rama actual.").showAndWait();
+                        return;
+                    }
+                    if (range.stream().anyMatch(c -> c.parents().size() > 1)) {
+                        new Alert(Alert.AlertType.WARNING,
+                                "El rango contiene commits de merge: el rebase"
+                                        + " interactivo solo admite historia lineal.")
+                                .showAndWait();
+                        return;
+                    }
+                    showInteractiveRebaseDialog(commit, range);
+                });
+    }
+
+    /** Estado editable de una fila del diálogo de rebase interactivo. */
+    private static final class RebaseRow {
+        final CommitInfo commit;
+        final javafx.scene.control.ComboBox<String> action =
+                new javafx.scene.control.ComboBox<>();
+        final TextField message = new TextField();
+        final Button up = new Button("↑");
+        final Button down = new Button("↓");
+        final HBox node = new HBox(6);
+
+        RebaseRow(CommitInfo commit) {
+            this.commit = commit;
+            action.getItems().addAll("pick", "reword", "squash", "drop");
+            action.getSelectionModel().select("pick");
+            action.setPrefWidth(100);
+            message.setText(commit.message());
+            message.setPromptText("Mensaje (solo reword)");
+            message.setDisable(true);
+            HBox.setHgrow(message, Priority.ALWAYS);
+            action.valueProperty().addListener((obs, o, v) ->
+                    message.setDisable(!"reword".equals(v)));
+            Label text = new Label(commit.shortId() + " — " + commit.message());
+            text.setMinWidth(260);
+            node.setAlignment(Pos.CENTER_LEFT);
+            node.getChildren().addAll(up, down, action, text, message);
+        }
+    }
+
+    private void showInteractiveRebaseDialog(CommitInfo base, List<CommitInfo> range) {
+        Dialog<ButtonType> dialog = new Dialog<>();
+        dialog.setTitle("Rebase interactivo");
+        dialog.setHeaderText("Reescribir " + range.size() + " commit(s) sobre "
+                + base.shortId() + " (el más nuevo arriba)");
+        List<RebaseRow> rows = new ArrayList<>();
+        VBox rowsBox = new VBox(4);
+        for (CommitInfo c : range) {
+            RebaseRow row = new RebaseRow(c);
+            row.up.setOnAction(e -> moveRow(rows, rowsBox, rows.indexOf(row), -1));
+            row.down.setOnAction(e -> moveRow(rows, rowsBox, rows.indexOf(row), 1));
+            rows.add(row);
+        }
+        rowsBox.getChildren().setAll(rows.stream().map(r -> r.node).toList());
+        javafx.scene.control.ScrollPane scroll =
+                new javafx.scene.control.ScrollPane(rowsBox);
+        scroll.setFitToWidth(true);
+        scroll.setPrefSize(760, Math.min(420, 70 + range.size() * 40));
+        dialog.getDialogPane().setContent(scroll);
+        dialog.getDialogPane().getButtonTypes().addAll(ButtonType.OK, ButtonType.CANCEL);
+        var result = dialog.showAndWait();
+        if (result.isEmpty() || result.get() != ButtonType.OK) {
+            return;
+        }
+        // El plan se aplica del más antiguo al más nuevo.
+        List<RebaseRow> applied = new ArrayList<>(rows);
+        java.util.Collections.reverse(applied);
+        List<GitService.RebasePlanEntry> plan = new ArrayList<>();
+        boolean keptSeen = false;
+        for (RebaseRow row : applied) {
+            String action = row.action.getValue();
+            if (!"drop".equals(action)) {
+                if (!keptSeen && "squash".equals(action)) {
+                    new Alert(Alert.AlertType.WARNING,
+                            "El commit más antiguo no puede ser «squash»: no hay"
+                                    + " un commit anterior sobre el que fusionar.")
+                            .showAndWait();
+                    return;
+                }
+                keptSeen = true;
+            }
+            if ("reword".equals(action) && row.message.getText().isBlank()) {
+                new Alert(Alert.AlertType.WARNING,
+                        "El mensaje de «reword» no puede estar vacío ("
+                                + row.commit.shortId() + ").").showAndWait();
+                return;
+            }
+            plan.add(new GitService.RebasePlanEntry(row.commit.id(), action,
+                    row.message.getText().trim()));
+        }
+        if (!keptSeen) {
+            new Alert(Alert.AlertType.WARNING,
+                    "No puedes eliminar (drop) todos los commits del rango.")
+                    .showAndWait();
+            return;
+        }
+        Alert confirm = new Alert(Alert.AlertType.CONFIRMATION,
+                "Esto reescribirá " + range.size() + " commit(s) de la rama actual."
+                        + " ¿Continuar? (Se puede deshacer con Ctrl+Z)");
+        confirm.setHeaderText("Rebase interactivo");
+        if (confirm.showAndWait().orElse(ButtonType.CANCEL) != ButtonType.OK) {
+            return;
+        }
+        runTask("Rebase interactivo", p -> {
+            if (!git.isClean()) {
+                throw new IllegalStateException(
+                        "Hay cambios sin commitear. Haz commit o stash antes.");
+            }
+            return git.interactiveRebase(base.id(), plan);
+        }, oldSha -> {
+            if (oldSha == null) {
+                new Alert(Alert.AlertType.INFORMATION,
+                        "El rebase se ha detenido por conflictos. Resuélvelos en"
+                                + " la pestaña Cambios y continúa, o aborta el rebase.")
+                        .showAndWait();
+            } else {
+                recordAction("Rebase interactivo sobre " + base.shortId(),
+                        g -> g.resetHard(oldSha),
+                        g -> g.interactiveRebase(base.id(), plan));
+            }
+            refreshAll();
+        });
+    }
+
+    private static void moveRow(List<RebaseRow> rows, VBox box, int index, int delta) {
+        int target = index + delta;
+        if (index < 0 || target < 0 || target >= rows.size()) {
+            return;
+        }
+        RebaseRow row = rows.remove(index);
+        rows.add(target, row);
+        box.getChildren().setAll(rows.stream().map(r -> r.node).toList());
     }
 
     /** Crea una etiqueta en un commit (menú contextual del grafo). */
