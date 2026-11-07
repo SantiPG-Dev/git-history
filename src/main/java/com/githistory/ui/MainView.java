@@ -158,6 +158,7 @@ public class MainView {
             commands.add(new CommandPalette.Command("Fetch", repo::fetch));
             commands.add(new CommandPalette.Command("Pull", repo::pull));
             commands.add(new CommandPalette.Command("Push", repo::push));
+            commands.add(new CommandPalette.Command("Push forzado…", repo::pushForce));
             commands.add(new CommandPalette.Command("Push de etiquetas", repo::pushTags));
             commands.add(new CommandPalette.Command("Refrescar", repo::refreshAll));
             commands.add(new CommandPalette.Command("Deshacer", repo::undoLast));
@@ -249,6 +250,13 @@ public class MainView {
                 repo.pushTags();
             }
         });
+        MenuItem pushForzado = new MenuItem("Push forzado…");
+        pushForzado.setOnAction(e -> {
+            RepoView repo = activeRepo();
+            if (repo != null) {
+                repo.pushForce();
+            }
+        });
         MenuItem remotos = new MenuItem("Gestionar remotos…");
         remotos.setOnAction(e -> {
             RepoView repo = activeRepo();
@@ -265,7 +273,7 @@ public class MainView {
             }
         });
         acciones.getItems().addAll(deshacer, rehacer, new SeparatorMenuItem(),
-                fetch, pull, push, pushTags, new SeparatorMenuItem(), remotos, refrescar);
+                fetch, pull, push, pushTags, pushForzado, new SeparatorMenuItem(), remotos, refrescar);
         acciones.setOnShowing(e -> {
             boolean noRepo = activeRepo() == null;
             deshacer.setDisable(noRepo);
@@ -274,6 +282,7 @@ public class MainView {
             pull.setDisable(noRepo);
             push.setDisable(noRepo);
             pushTags.setDisable(noRepo);
+            pushForzado.setDisable(noRepo);
             remotos.setDisable(noRepo);
             refrescar.setDisable(noRepo);
         });
