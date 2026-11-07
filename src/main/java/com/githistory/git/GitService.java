@@ -938,6 +938,20 @@ public class GitService implements AutoCloseable {
         git.branchDelete().setBranchNames(shortName).setForce(true).call();
     }
 
+    /** Renombra una rama local, llevándose su upstream si apuntaba a sí misma. */
+    public void renameBranch(String oldName, String newName) throws GitAPIException, IOException {
+        StoredConfig config = repo.getConfig();
+        String remote = config.getString("branch", oldName, "remote");
+        String merge = config.getString("branch", oldName, "merge");
+        git.branchRename().setOldName(oldName).setNewName(newName).call();
+        // JGit mueve la sección branch.<old> a branch.<new>, pero el upstream
+        // sigue apuntando al nombre viejo si era local.
+        if (merge != null && merge.equals(Constants.R_HEADS + oldName)) {
+            config.setString("branch", newName, "merge", Constants.R_HEADS + newName);
+            config.save();
+        }
+    }
+
     public record StashEntry(int index, String message) {}
 
     public List<StashEntry> stashList() throws GitAPIException {
