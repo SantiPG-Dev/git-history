@@ -147,6 +147,11 @@ public class RepoView {
                     }
 
                     @Override
+                    public void rewordCommit(CommitInfo commit) {
+                        RepoView.this.rewordCommit(commit);
+                    }
+
+                    @Override
                     public void copyHash(CommitInfo commit) {
                         RepoView.this.copyHash(commit);
                     }
@@ -709,6 +714,40 @@ public class RepoView {
                         g -> g.squashHead(message));
                 refreshAll();
             });
+        });
+    }
+
+    /**
+     * Edita el mensaje de un commit (reword), reescribiendo la historia
+     * desde él hasta HEAD.
+     */
+    private void rewordCommit(CommitInfo commit) {
+        Dialog<ButtonType> dialog = new Dialog<>();
+        dialog.setTitle("Editar mensaje");
+        dialog.setHeaderText("Nuevo mensaje para " + commit.shortId()
+                + " (reescribe la historia desde este commit hasta HEAD):");
+        dialog.getDialogPane().getButtonTypes().addAll(ButtonType.OK, ButtonType.CANCEL);
+        TextArea messageArea = new TextArea(commit.message());
+        messageArea.getStyleClass().add("conflict-editor");
+        messageArea.setPrefSize(520, 160);
+        dialog.getDialogPane().setContent(messageArea);
+        var result = dialog.showAndWait();
+        if (result.isEmpty() || result.get() != ButtonType.OK
+                || messageArea.getText().isBlank()) {
+            return;
+        }
+        String message = messageArea.getText().trim();
+        runTask("Reescribiendo mensaje", p -> {
+            if (!git.isClean()) {
+                throw new IllegalStateException(
+                        "Hay cambios sin commitear. Haz commit o stash antes.");
+            }
+            return git.rewordCommit(commit.id(), message);
+        }, oldSha -> {
+            recordAction("Reword: " + commit.shortId(),
+                    g -> g.resetHard(oldSha),
+                    g -> g.rewordCommit(commit.id(), message));
+            refreshAll();
         });
     }
 

@@ -5,9 +5,11 @@ import org.eclipse.jgit.api.DiffCommand;
 import org.eclipse.jgit.api.Git;
 import org.eclipse.jgit.api.ListBranchCommand;
 import org.eclipse.jgit.api.RebaseCommand;
+import org.eclipse.jgit.api.RebaseResult;
 import org.eclipse.jgit.api.ResetCommand;
 import org.eclipse.jgit.api.Status;
 import org.eclipse.jgit.api.errors.GitAPIException;
+import org.eclipse.jgit.errors.IllegalTodoFileModification;
 import org.eclipse.jgit.blame.BlameResult;
 import org.eclipse.jgit.diff.DiffEntry;
 import org.eclipse.jgit.diff.DiffFormatter;
@@ -27,6 +29,7 @@ import org.eclipse.jgit.lib.ProgressMonitor;
 import org.eclipse.jgit.lib.Ref;
 import org.eclipse.jgit.lib.Repository;
 import org.eclipse.jgit.lib.StoredConfig;
+import org.eclipse.jgit.lib.RebaseTodoLine;
 import org.eclipse.jgit.revwalk.RevCommit;
 import org.eclipse.jgit.revwalk.RevObject;
 import org.eclipse.jgit.revwalk.RevSort;
@@ -355,6 +358,97 @@ public class GitService implements AutoCloseable {
         ru.setNewObjectId(newId);
         ru.setRefLogMessage("squash: " + headId.getName().substring(0, 7), false);
         ru.forceUpdate();
+        return headId.getName();
+    }
+
+    /**
+     * Cambia el mensaje de un commit de la rama actual (reword), reescribiendo
+     * la historia desde él hasta HEAD mediante rebase interactivo. El commit
+     * debe tener exactamente un padre (ni raíz ni merge).
+     *
+     * @return SHA de HEAD anterior (para deshacer con resetHard).
+     */
+    public String rewordCommit(String sha, String newMessage)
+            throws IOException, GitAPIException {
+        ObjectId headId = repo.resolve(Constants.HEAD);
+        String branch = repo.getBranch();
+        if (headId == null || branch == null) {
+            throw new IllegalStateException("HEAD separado: no se puede reescribir");
+        }
+        RevCommit target;
+        try (RevWalk walk = new RevWalk(repo)) {
+            target = walk.parseCommit(ObjectId.fromString(sha));
+            if (!walk.isMergedInto(target, walk.parseCommit(headId))
+                    && !target.getId().equals(headId)) {
+                throw new IllegalStateException(
+                        "El commit no es un ancestro de HEAD");
+            }
+            if (target.getParentCount() == 0) {
+                throw new IllegalStateException(
+                        "No se puede reescribir el commit raíz");
+            }
+            if (target.getParentCount() > 1) {
+                throw new IllegalStateException(
+                        "No se puede reescribir un commit de merge");
+            }
+        }
+        String message = newMessage.endsWith("\n") ? newMessage : newMessage + "\n";
+        if (target.getId().equals(headId)) {
+            // Reescritura directa de HEAD: mismo árbol, autores y padres.
+            ObjectId newId;
+            try (RevWalk walk = new RevWalk(repo)) {
+                RevCommit head = walk.parseCommit(headId);
+                org.eclipse.jgit.lib.CommitBuilder cb =
+                        new org.eclipse.jgit.lib.CommitBuilder();
+                cb.setTreeId(head.getTree());
+                cb.setParentIds(head.getParents());
+                cb.setAuthor(head.getAuthorIdent());
+                cb.setCommitter(new PersonIdent(repo));
+                cb.setMessage(message);
+                ObjectInserter inserter = repo.newObjectInserter();
+                newId = inserter.insert(cb);
+                inserter.flush();
+                inserter.close();
+            }
+            org.eclipse.jgit.lib.RefUpdate ru =
+                    repo.updateRef(Constants.R_HEADS + branch);
+            ru.setNewObjectId(newId);
+            ru.setRefLogMessage("reword: " + headId.getName().substring(0, 7), false);
+            ru.forceUpdate();
+            return headId.getName();
+        }
+        ObjectId targetId = target.getId();
+        ObjectId upstream = target.getParent(0).getId();
+        boolean[] consumed = {false};
+        RebaseResult result = git.rebase().setUpstream(upstream).runInteractively(
+                new RebaseCommand.InteractiveHandler() {
+                    @Override
+                    public void prepareSteps(List<RebaseTodoLine> steps) {
+                        for (RebaseTodoLine step : steps) {
+                            if (step.getCommit().prefixCompare(targetId) == 0) {
+                                try {
+                                    step.setAction(RebaseTodoLine.Action.REWORD);
+                                } catch (IllegalTodoFileModification e) {
+                                    throw new IllegalStateException(
+                                            "No se puede marcar reword", e);
+                                }
+                            }
+                        }
+                    }
+
+                    @Override
+                    public String modifyCommitMessage(String oldMessage) {
+                        if (!consumed[0]) {
+                            consumed[0] = true;
+                            return message;
+                        }
+                        return oldMessage;
+                    }
+                }).call();
+        if (!result.getStatus().isSuccessful()) {
+            throw new IllegalStateException(
+                    "El rebase para reword no completó: " + result.getStatus());
+        }
         return headId.getName();
     }
 
