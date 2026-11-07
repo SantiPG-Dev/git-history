@@ -97,6 +97,7 @@ public class RepoView {
     private List<GitService.BranchInfo> lastBranches = List.of();
     private List<Integer> searchHits = List.of();
     private int searchCursor = -1;
+    private Consumer<Path> openInTab;
     private final Map<String, javafx.scene.image.Image> avatars =
             new java.util.concurrent.ConcurrentHashMap<>();
 
@@ -234,6 +235,15 @@ public class RepoView {
 
     public Path getRepoPath() {
         return repoPath;
+    }
+
+    /** Callback para abrir una ruta (p. ej. un worktree) en otra pestaña. */
+    public void setOpenInTab(Consumer<Path> openInTab) {
+        this.openInTab = openInTab;
+    }
+
+    public Consumer<Path> openInTab() {
+        return openInTab;
     }
 
     /** Ramas locales conocidas (caché del último refresco, para la paleta). */

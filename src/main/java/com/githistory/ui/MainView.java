@@ -113,6 +113,7 @@ public class MainView {
             }
         }
         RepoView view = new RepoView(credentials);
+        view.setOpenInTab(this::openRepo);
         Tab tab = new Tab(dir.getFileName().toString());
         tab.setUserData(view);
         tab.setContent(view.getRoot());
