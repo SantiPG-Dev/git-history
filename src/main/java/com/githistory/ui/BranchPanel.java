@@ -37,7 +37,8 @@ public class BranchPanel {
                               List<GitService.SubmoduleInfo> submodules,
                               List<GitHubService.PullRequest> pullRequests,
                               List<GitHubService.Issue> issues,
-                              LfsInfo lfs) {}
+                              LfsInfo lfs,
+                              List<GitService.WorktreeInfo> worktrees) {}
 
     private final RepoView repo;
     private final VBox root = new VBox(4);
@@ -81,6 +82,13 @@ public class BranchPanel {
                     // Sin red o API no disponible: las secciones se ocultan.
                 }
             }
+            List<GitService.WorktreeInfo> worktrees;
+            try {
+                worktrees = repo.git().worktrees();
+            } catch (Exception e) {
+                // Sin git CLI disponible: la sección queda vacía.
+                worktrees = List.of();
+            }
             return new BranchData(
                     repo.git().branches(false),
                     repo.git().branches(true),
@@ -88,7 +96,8 @@ public class BranchPanel {
                     repo.git().stashList(),
                     repo.git().submodules(),
                     prs, issues,
-                    new LfsInfo(repo.git().lfsEnabled(), repo.git().lfsPatterns()));
+                    new LfsInfo(repo.git().lfsEnabled(), repo.git().lfsPatterns()),
+                    worktrees);
         }, data -> {
             lastData = data;
             rebuild();
@@ -118,6 +127,9 @@ public class BranchPanel {
                 || !lastData.lfs().patterns().isEmpty())) {
             rootItem.getChildren().add(section("LFS", List.of(lastData.lfs())));
         }
+        TreeItem<Object> worktrees = section("WORKTREES", lastData.worktrees());
+        worktrees.setExpanded(true);
+        rootItem.getChildren().add(worktrees);
         if (lastData.pullRequests() != null) {
             rootItem.getChildren().add(section("PULL REQUESTS", lastData.pullRequests()));
         }
@@ -284,6 +296,86 @@ public class BranchPanel {
         return new ContextMenu(apply, pop, new SeparatorMenuItem(), drop);
     }
 
+    private ContextMenu menuForWorktree(GitService.WorktreeInfo wt) {
+        MenuItem open = new MenuItem("Abrir en pestaña nueva");
+        open.setDisable(repo.openInTab() == null);
+        open.setOnAction(e -> repo.openInTab().accept(java.nio.file.Path.of(wt.path())));
+        MenuItem remove = new MenuItem("Eliminar worktree…");
+        remove.setDisable(wt.main());
+        remove.setOnAction(e -> removeWorktree(wt, false));
+        MenuItem removeForce = new MenuItem("Eliminar worktree (forzado)");
+        removeForce.setDisable(wt.main());
+        removeForce.setOnAction(e -> removeWorktree(wt, true));
+        return new ContextMenu(open, new SeparatorMenuItem(), remove, removeForce);
+    }
+
+    private void removeWorktree(GitService.WorktreeInfo wt, boolean force) {
+        Alert confirm = new Alert(Alert.AlertType.CONFIRMATION,
+                "¿Eliminar el worktree «" + wt.path() + "»"
+                        + (force ? " aunque tenga cambios?" : "?"));
+        confirm.setHeaderText("Eliminar worktree");
+        confirm.showAndWait().filter(bt -> bt == ButtonType.OK).ifPresent(bt ->
+                repo.runTask("Eliminando worktree", p -> {
+                    repo.git().worktreeRemove(wt.path(), force);
+                    return null;
+                }, v -> repo.refreshAll()));
+    }
+
+    private void createWorktree() {
+        javafx.scene.control.Dialog<ButtonType> dialog =
+                new javafx.scene.control.Dialog<>();
+        dialog.setTitle("Nuevo worktree");
+        dialog.setHeaderText("Crea un worktree del repositorio actual");
+        dialog.getDialogPane().getButtonTypes().addAll(ButtonType.OK, ButtonType.CANCEL);
+        TextField path = new TextField();
+        path.setPromptText("/ruta/al/directorio");
+        javafx.scene.control.Button browse = new javafx.scene.control.Button("…");
+        browse.setOnAction(e -> {
+            javafx.stage.DirectoryChooser chooser = new javafx.stage.DirectoryChooser();
+            chooser.setTitle("Directorio del worktree");
+            java.io.File dir = chooser.showDialog(tree.getScene().getWindow());
+            if (dir != null) {
+                path.setText(dir.getAbsolutePath());
+            }
+        });
+        javafx.scene.layout.HBox pathRow =
+                new javafx.scene.layout.HBox(6, path, browse);
+        javafx.scene.layout.HBox.setHgrow(path, Priority.ALWAYS);
+        TextField branch = new TextField();
+        branch.setPromptText("Rama (existente o nueva)");
+        javafx.scene.control.CheckBox createBranch =
+                new javafx.scene.control.CheckBox("Crear la rama nueva desde HEAD");
+        createBranch.setSelected(true);
+        javafx.scene.layout.VBox content = new javafx.scene.layout.VBox(8,
+                new javafx.scene.control.Label("Directorio:"), pathRow,
+                new javafx.scene.control.Label("Rama:"), branch, createBranch);
+        content.setPadding(new Insets(10));
+        content.setPrefWidth(460);
+        dialog.getDialogPane().setContent(content);
+        var result = dialog.showAndWait();
+        if (result.isEmpty() || result.get() != ButtonType.OK
+                || path.getText().isBlank() || branch.getText().isBlank()) {
+            return;
+        }
+        String target = path.getText().trim();
+        String name = branch.getText().trim();
+        boolean create = createBranch.isSelected();
+        if (!repo.git().isValidBranchName(name)) {
+            new Alert(Alert.AlertType.ERROR,
+                    "Nombre de rama no válido: " + name).showAndWait();
+            return;
+        }
+        repo.runTask("Creando worktree", p -> {
+            repo.git().worktreeAdd(target, name, create);
+            return null;
+        }, v -> {
+            repo.refreshAll();
+            if (repo.openInTab() != null) {
+                repo.openInTab().accept(java.nio.file.Path.of(target));
+            }
+        });
+    }
+
     private ContextMenu menuForSubmodule(GitService.SubmoduleInfo submodule) {
         MenuItem update = new MenuItem(submodule.initialized()
                 ? "Actualizar al commit fijado" : "Inicializar y clonar");
@@ -315,6 +407,11 @@ public class BranchPanel {
             if (item instanceof String header) {
                 setText(header);
                 getStyleClass().add("branch-header");
+                if (header.startsWith("WORKTREES")) {
+                    MenuItem create = new MenuItem("Nuevo worktree…");
+                    create.setOnAction(e -> createWorktree());
+                    setContextMenu(new ContextMenu(create));
+                }
             } else if (item instanceof GitHubService.PullRequest pr) {
                 setText("#" + pr.number() + " — " + pr.title() + " (" + pr.author() + ")");
                 getStyleClass().add("branch-tag");
@@ -357,6 +454,11 @@ public class BranchPanel {
                             return null;
                         }, v -> repo.refreshAll()));
                 setContextMenu(new ContextMenu(install));
+            } else if (item instanceof GitService.WorktreeInfo wt) {
+                setText(wt.path() + (wt.branch() != null
+                        ? " (" + wt.branch() + ")" : " (HEAD separado)"));
+                getStyleClass().add("branch-tag");
+                setContextMenu(menuForWorktree(wt));
             } else if (item instanceof GitService.BranchInfo branch) {
                 setText(branch.shortName() + (branch.current() ? " ✓" : ""));
                 setContextMenu(menuForBranch(branch));

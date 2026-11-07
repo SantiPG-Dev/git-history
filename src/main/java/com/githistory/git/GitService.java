@@ -1247,6 +1247,85 @@ public class GitService implements AutoCloseable {
         git.submoduleUpdate().addPath(path).call();
     }
 
+    // ── Worktrees (vía git CLI: JGit 7.1 no tiene API de worktrees) ─────
+
+    public record WorktreeInfo(String path, String headSha, String branch,
+                               boolean bare, boolean main) {}
+
+    /** Ejecuta el git CLI en el worktree del repo. Devuelve stdout+stderr. */
+    private String runGitCli(List<String> args)
+            throws IOException, InterruptedException {
+        List<String> cmd = new ArrayList<>();
+        cmd.add("git");
+        cmd.addAll(args);
+        Process process = new ProcessBuilder(cmd)
+                .directory(repo.getWorkTree())
+                .redirectErrorStream(true)
+                .start();
+        String out = new String(process.getInputStream().readAllBytes(),
+                StandardCharsets.UTF_8);
+        int code = process.waitFor();
+        if (code != 0) {
+            throw new IOException("git " + String.join(" ", args) + " falló ("
+                    + code + "): " + out.trim());
+        }
+        return out;
+    }
+
+    /** Worktrees del repositorio (el primero es el principal). */
+    public List<WorktreeInfo> worktrees()
+            throws IOException, InterruptedException {
+        String out = runGitCli(List.of("worktree", "list", "--porcelain"));
+        List<WorktreeInfo> result = new ArrayList<>();
+        String path = null;
+        String sha = null;
+        String branch = null;
+        boolean bare = false;
+        for (String line : out.split("\n")) {
+            if (line.startsWith("worktree ")) {
+                if (path != null) {
+                    result.add(new WorktreeInfo(path, sha, branch, bare,
+                            result.isEmpty()));
+                }
+                path = line.substring("worktree ".length());
+                sha = null;
+                branch = null;
+                bare = false;
+            } else if (line.startsWith("HEAD ")) {
+                sha = line.substring(5);
+            } else if (line.startsWith("branch ")) {
+                branch = line.substring(7).replaceFirst("^refs/heads/", "");
+            } else if (line.equals("bare")) {
+                bare = true;
+            }
+        }
+        if (path != null) {
+            result.add(new WorktreeInfo(path, sha, branch, bare,
+                    result.isEmpty()));
+        }
+        return result;
+    }
+
+    /** Crea un worktree en {@code path} con la rama dada (nueva o existente). */
+    public void worktreeAdd(String path, String branch, boolean createBranch)
+            throws IOException, InterruptedException {
+        if (createBranch) {
+            runGitCli(List.of("worktree", "add", "-b", branch, path));
+        } else {
+            runGitCli(List.of("worktree", "add", path, branch));
+        }
+    }
+
+    /** Elimina un worktree (no el principal). */
+    public void worktreeRemove(String path, boolean force)
+            throws IOException, InterruptedException {
+        if (force) {
+            runGitCli(List.of("worktree", "remove", "--force", path));
+        } else {
+            runGitCli(List.of("worktree", "remove", path));
+        }
+    }
+
     // ── LFS ──────────────────────────────────────────────────────────────
 
     /** true si el módulo LFS de JGit está en el classpath (soporte nativo). */
