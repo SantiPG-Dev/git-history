@@ -67,6 +67,12 @@ import java.util.function.BiConsumer;
  */
 public class GitService implements AutoCloseable {
 
+    static {
+        // Registra el soporte nativo de LFS (el módulo org.eclipse.jgit.lfs
+        // no se auto-registra: hay que invocarlo explícitamente).
+        org.eclipse.jgit.lfs.BuiltinLFS.register();
+    }
+
     public record StatusEntry(String path, String state) {}
 
     public record WorkingTreeStatus(List<StatusEntry> staged, List<StatusEntry> unstaged) {}
@@ -1099,6 +1105,60 @@ public class GitService implements AutoCloseable {
             Files.writeString(gitFile, "gitdir: " + worktree.relativize(modulesDir) + "\n");
         }
         git.submoduleUpdate().addPath(path).call();
+    }
+
+    // ── LFS ──────────────────────────────────────────────────────────────
+
+    /** true si el módulo LFS de JGit está en el classpath (soporte nativo). */
+    public boolean lfsAvailable() {
+        return org.eclipse.jgit.util.LfsFactory.getInstance().isAvailable();
+    }
+
+    /** true si LFS está activado en este repositorio. */
+    public boolean lfsEnabled() {
+        return org.eclipse.jgit.util.LfsFactory.getInstance().isEnabled(repo);
+    }
+
+    /**
+     * Activa LFS en el repositorio (filtros clean/smudge nativos de JGit y
+     * hook de pre-push). Equivalente a `git lfs install --local`.
+     */
+    public void lfsInstall() throws Exception {
+        var cmd = org.eclipse.jgit.util.LfsFactory.getInstance().getInstallCommand();
+        if (cmd == null) {
+            throw new IllegalStateException("El módulo LFS de JGit no está disponible");
+        }
+        cmd.setRepository(repo).call();
+    }
+
+    /**
+     * Patrones con `filter=lfs` en el .gitattributes de la raíz del worktree
+     * (o de info/attributes). Lista vacía si el repo no usa LFS.
+     */
+    public List<String> lfsPatterns() throws IOException {
+        List<String> patterns = new ArrayList<>();
+        List<Path> sources = new ArrayList<>();
+        if (repo.getWorkTree() != null) {
+            sources.add(repo.getWorkTree().toPath().resolve(".gitattributes"));
+        }
+        sources.add(repo.getDirectory().toPath()
+                .resolve(Constants.INFO_ATTRIBUTES));
+        for (Path source : sources) {
+            if (!Files.isRegularFile(source)) {
+                continue;
+            }
+            for (String line : Files.readAllLines(source)) {
+                String trimmed = line.trim();
+                if (trimmed.isEmpty() || trimmed.startsWith("#")) {
+                    continue;
+                }
+                String[] parts = trimmed.split("\\s+");
+                if (parts.length >= 2 && trimmed.contains("filter=lfs")) {
+                    patterns.add(parts[0]);
+                }
+            }
+        }
+        return patterns;
     }
 
     /** @return false si no había cambios que guardar. */

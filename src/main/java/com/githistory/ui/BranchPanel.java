@@ -28,13 +28,16 @@ public class BranchPanel {
 
     private record TagInfo(String name) {}
 
+    private record LfsInfo(boolean enabled, List<String> patterns) {}
+
     private record BranchData(List<GitService.BranchInfo> locals,
                               List<GitService.BranchInfo> remotes,
                               List<String> tags,
                               List<GitService.StashEntry> stashes,
                               List<GitService.SubmoduleInfo> submodules,
                               List<GitHubService.PullRequest> pullRequests,
-                              List<GitHubService.Issue> issues) {}
+                              List<GitHubService.Issue> issues,
+                              LfsInfo lfs) {}
 
     private final RepoView repo;
     private final VBox root = new VBox(4);
@@ -84,7 +87,8 @@ public class BranchPanel {
                     repo.git().tags(),
                     repo.git().stashList(),
                     repo.git().submodules(),
-                    prs, issues);
+                    prs, issues,
+                    new LfsInfo(repo.git().lfsEnabled(), repo.git().lfsPatterns()));
         }, data -> {
             lastData = data;
             rebuild();
@@ -110,6 +114,10 @@ public class BranchPanel {
         locals.setExpanded(true);
         remotes.setExpanded(true);
         rootItem.getChildren().addAll(locals, remotes, tags, stashes, submodules);
+        if (lastData.lfs() != null && (lastData.lfs().enabled()
+                || !lastData.lfs().patterns().isEmpty())) {
+            rootItem.getChildren().add(section("LFS", List.of(lastData.lfs())));
+        }
         if (lastData.pullRequests() != null) {
             rootItem.getChildren().add(section("PULL REQUESTS", lastData.pullRequests()));
         }
@@ -336,6 +344,19 @@ public class BranchPanel {
                 setText(submodule.path() + (submodule.initialized() ? "" : " (sin inicializar)"));
                 getStyleClass().add("branch-tag");
                 setContextMenu(menuForSubmodule(submodule));
+            } else if (item instanceof LfsInfo lfs) {
+                setText(lfs.enabled()
+                        ? "Activado — " + lfs.patterns().size() + " patrón(es)"
+                        : "Detectado pero sin activar");
+                getStyleClass().add("branch-tag");
+                MenuItem install = new MenuItem("Activar LFS en este repositorio");
+                install.setDisable(lfs.enabled());
+                install.setOnAction(e ->
+                        repo.runTask("Activando LFS", p -> {
+                            repo.git().lfsInstall();
+                            return null;
+                        }, v -> repo.refreshAll()));
+                setContextMenu(new ContextMenu(install));
             } else if (item instanceof GitService.BranchInfo branch) {
                 setText(branch.shortName() + (branch.current() ? " ✓" : ""));
                 setContextMenu(menuForBranch(branch));
