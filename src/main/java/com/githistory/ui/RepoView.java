@@ -365,6 +365,22 @@ public class RepoView {
         }, v -> refreshAll());
     }
 
+    /** Push forzado con confirmación (tras squash/amend/rebase). */
+    public void pushForce() {
+        if (!git.isOpen()) {
+            return;
+        }
+        Alert confirm = new Alert(Alert.AlertType.WARNING,
+                "El push forzado sobrescribe la rama remota con la local. Si otros"
+                        + " han empujado commits que no tienes, se perderán. ¿Continuar?");
+        confirm.setHeaderText("Push forzado");
+        confirm.showAndWait().filter(bt -> bt == ButtonType.OK).ifPresent(bt ->
+                runTask("Push forzado en curso…", p -> {
+                    git.pushForce(credentials, p);
+                    return null;
+                }, v -> refreshAll()));
+    }
+
     // ── Barra de acciones ────────────────────────────────────────────────
 
     private Node buildActionBar() {

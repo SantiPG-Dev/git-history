@@ -902,8 +902,8 @@ public class GitService implements AutoCloseable {
     /** Sube todas las etiquetas locales al remoto por defecto. */
     public void pushTags(CredentialsProvider credentials, BiConsumer<String, Double> progress)
             throws GitAPIException {
-        git.push().setPushTags().setCredentialsProvider(credentials)
-                .setProgressMonitor(monitor(progress)).call();
+        checkPushResult(git.push().setPushTags().setCredentialsProvider(credentials)
+                .setProgressMonitor(monitor(progress)).call());
     }
 
     public boolean isValidBranchName(String name) {
@@ -1023,8 +1023,49 @@ public class GitService implements AutoCloseable {
         git.pull().setCredentialsProvider(credentials).setProgressMonitor(monitor(progress)).call();
     }
 
-    public void push(CredentialsProvider credentials, BiConsumer<String, Double> progress) throws GitAPIException {
-        git.push().setCredentialsProvider(credentials).setProgressMonitor(monitor(progress)).call();
+    public void push(CredentialsProvider credentials, BiConsumer<String, Double> progress)
+            throws GitAPIException, IOException {
+        String branch = repo.getBranch();
+        var cmd = git.push()
+                .setCredentialsProvider(credentials)
+                .setProgressMonitor(monitor(progress));
+        if (branch != null) {
+            // Sin refspec, JGit puede no empujar nada silenciosamente.
+            cmd.setRefSpecs(new org.eclipse.jgit.transport.RefSpec(
+                    Constants.R_HEADS + branch + ":" + Constants.R_HEADS + branch));
+        }
+        checkPushResult(cmd.call());
+    }
+
+    /** Push forzado de la rama actual (tras reescribir historia: squash, amend, rebase). */
+    public void pushForce(CredentialsProvider credentials, BiConsumer<String, Double> progress)
+            throws GitAPIException, IOException {
+        String branch = repo.getBranch();
+        if (branch == null) {
+            throw new IllegalStateException("HEAD separado: no hay rama que empujar");
+        }
+        checkPushResult(git.push().setForce(true)
+                .setRefSpecs(new org.eclipse.jgit.transport.RefSpec(
+                        Constants.R_HEADS + branch + ":" + Constants.R_HEADS + branch))
+                .setCredentialsProvider(credentials)
+                .setProgressMonitor(monitor(progress)).call());
+    }
+
+    /** JGit no lanza excepción ante rechazos del remoto: se inspecciona el resultado. */
+    private static void checkPushResult(Iterable<org.eclipse.jgit.transport.PushResult> results)
+            throws GitAPIException {
+        for (org.eclipse.jgit.transport.PushResult result : results) {
+            for (org.eclipse.jgit.transport.RemoteRefUpdate update : result.getRemoteUpdates()) {
+                var status = update.getStatus();
+                if (status != org.eclipse.jgit.transport.RemoteRefUpdate.Status.OK
+                        && status != org.eclipse.jgit.transport.RemoteRefUpdate.Status.UP_TO_DATE) {
+                    String detail = update.getMessage() != null
+                            ? ": " + update.getMessage() : "";
+                    throw new GitAPIException("Push rechazado ("
+                            + update.getRemoteName() + "): " + status + detail) {};
+                }
+            }
+        }
     }
 
     /** ¿La rama tiene upstream configurado (branch.<name>.remote/merge)? */
@@ -1039,10 +1080,10 @@ public class GitService implements AutoCloseable {
                                 BiConsumer<String, Double> progress)
             throws GitAPIException, IOException {
         String ref = Constants.R_HEADS + branch;
-        git.push().setRemote(remote)
+        checkPushResult(git.push().setRemote(remote)
                 .setRefSpecs(new org.eclipse.jgit.transport.RefSpec(ref + ":" + ref))
                 .setCredentialsProvider(credentials)
-                .setProgressMonitor(monitor(progress)).call();
+                .setProgressMonitor(monitor(progress)).call());
         StoredConfig config = repo.getConfig();
         config.setString("branch", branch, "remote", remote);
         config.setString("branch", branch, "merge", ref);
