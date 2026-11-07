@@ -173,6 +173,26 @@ public class BranchPanel {
         });
     }
 
+    private void renameBranch(GitService.BranchInfo branch) {
+        TextInputDialog dialog = new TextInputDialog(branch.shortName());
+        dialog.setTitle("Renombrar rama");
+        dialog.setHeaderText("Renombrar «" + branch.shortName() + "»");
+        dialog.setContentText("Nuevo nombre:");
+        dialog.showAndWait().map(String::trim)
+                .filter(n -> !n.isEmpty() && !n.equals(branch.shortName()))
+                .ifPresent(name -> {
+                    if (!repo.git().isValidBranchName(name)) {
+                        new Alert(Alert.AlertType.ERROR,
+                                "Nombre de rama no válido: " + name).showAndWait();
+                        return;
+                    }
+                    repo.runTask("Renombrando rama", p -> {
+                        repo.git().renameBranch(branch.shortName(), name);
+                        return null;
+                    }, v -> repo.refreshAll());
+                });
+    }
+
     private void deleteBranch(GitService.BranchInfo branch) {
         Alert confirm = new Alert(Alert.AlertType.CONFIRMATION,
                 "¿Eliminar la rama «" + branch.shortName() + "»? Esta acción no se puede deshacer.");
@@ -223,7 +243,9 @@ public class BranchPanel {
             rebase.setOnAction(e -> repo.rebaseOnto(branch.shortName()));
             MenuItem create = new MenuItem("Nueva rama…");
             create.setOnAction(e -> createBranch());
-            menu.getItems().addAll(checkout, merge, rebase, create);
+            MenuItem rename = new MenuItem("Renombrar rama…");
+            rename.setOnAction(e -> renameBranch(branch));
+            menu.getItems().addAll(checkout, merge, rebase, create, rename);
             if (!repo.git().hasUpstream(branch.shortName())
                     && repo.git().remoteUrl("origin") != null) {
                 MenuItem publish = new MenuItem("Publicar en origin");
