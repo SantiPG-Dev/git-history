@@ -460,7 +460,10 @@ public class BranchPanel {
                 getStyleClass().add("branch-tag");
                 setContextMenu(menuForWorktree(wt));
             } else if (item instanceof GitService.BranchInfo branch) {
-                setText(branch.shortName() + (branch.current() ? " ✓" : ""));
+                String counters = branch.remote() ? ""
+                        : (branch.ahead() > 0 ? " ↑" + branch.ahead() : "")
+                        + (branch.behind() > 0 ? " ↓" + branch.behind() : "");
+                setText(branch.shortName() + (branch.current() ? " ✓" : "") + counters);
                 setContextMenu(menuForBranch(branch));
                 setOnMouseClicked(e -> {
                     if (e.getClickCount() == 2 && !branch.remote()) {

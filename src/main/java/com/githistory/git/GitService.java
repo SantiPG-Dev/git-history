@@ -77,7 +77,8 @@ public class GitService implements AutoCloseable {
 
     public record WorkingTreeStatus(List<StatusEntry> staged, List<StatusEntry> unstaged) {}
 
-    public record BranchInfo(String name, String shortName, boolean remote, boolean current) {}
+    public record BranchInfo(String name, String shortName, boolean remote,
+                             boolean current, int ahead, int behind) {}
 
     public record DiffFile(String path, String changeType, String diffText) {}
 
@@ -1108,7 +1109,28 @@ public class GitService implements AutoCloseable {
         List<BranchInfo> out = new ArrayList<>();
         for (Ref ref : cmd.call()) {
             String shortName = Repository.shortenRefName(ref.getName());
-            out.add(new BranchInfo(ref.getName(), shortName, remote, !remote && shortName.equals(current)));
+            int ahead = 0;
+            int behind = 0;
+            if (!remote) {
+                String tracking = new org.eclipse.jgit.lib.BranchConfig(
+                        repo.getConfig(), shortName).getTrackingBranch();
+                if (tracking != null) {
+                    ObjectId localId = ref.getObjectId();
+                    ObjectId upstreamId = repo.resolve(tracking);
+                    if (upstreamId != null && !upstreamId.equals(localId)) {
+                        for (RevCommit ignored : git.log()
+                                .addRange(upstreamId, localId).call()) {
+                            ahead++;
+                        }
+                        for (RevCommit ignored : git.log()
+                                .addRange(localId, upstreamId).call()) {
+                            behind++;
+                        }
+                    }
+                }
+            }
+            out.add(new BranchInfo(ref.getName(), shortName, remote,
+                    !remote && shortName.equals(current), ahead, behind));
         }
         out.sort(Comparator.comparing(BranchInfo::shortName));
         return out;

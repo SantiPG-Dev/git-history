@@ -491,12 +491,16 @@ public class RepoView {
 
     private void updateBranchMenu(List<GitService.BranchInfo> branches) {
         lastBranches = branches;
-        String current = branches.stream()
+        GitService.BranchInfo currentInfo = branches.stream()
                 .filter(GitService.BranchInfo::current)
-                .map(GitService.BranchInfo::shortName)
                 .findFirst()
-                .orElse("HEAD separado");
-        branchMenu.setText("⎇ " + current);
+                .orElse(null);
+        String current = currentInfo == null
+                ? "HEAD separado" : currentInfo.shortName();
+        String counters = currentInfo == null ? ""
+                : (currentInfo.ahead() > 0 ? " ↑" + currentInfo.ahead() : "")
+                + (currentInfo.behind() > 0 ? " ↓" + currentInfo.behind() : "");
+        branchMenu.setText("⎇ " + current + counters);
         ToggleGroup group = new ToggleGroup();
         branchMenu.getItems().clear();
         for (GitService.BranchInfo b : branches) {
