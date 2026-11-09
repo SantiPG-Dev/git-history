@@ -17,6 +17,7 @@ public class App extends Application {
         Scene scene = new Scene(mainView.getRoot(), 1280, 800);
         scene.getStylesheets().add(Objects.requireNonNull(
                 getClass().getResource("/com/githistory/app.css")).toExternalForm());
+        com.githistory.ui.Themes.apply(scene, AppConfig.load().theme());
         stage.setTitle("Git History");
         stage.setScene(scene);
         stage.show();

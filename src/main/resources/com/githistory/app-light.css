@@ -1,0 +1,409 @@
+/* Tema claro — paleta Catppuccin Latte (sobrescribe app.css) */
+
+.root {
+    -fx-base: #ccd0da;
+    -fx-background: #eff1f5;
+    -fx-control-inner-background: #e6e9ef;
+    -fx-control-inner-background-alt: #dce0e8;
+    -fx-accent: #1e66f5;
+    -fx-focus-color: #1e66f555;
+    -fx-faint-focus-color: #1e66f522;
+}
+
+/* ── Barras ─────────────────────────────────────────────── */
+
+.tool-bar {
+    -fx-background-color: #e6e9ef;
+}
+
+.status-bar {
+    -fx-background-color: #e6e9ef;
+}
+
+/* ── Botones ────────────────────────────────────────────── */
+
+.button {
+    -fx-border-color: #acb0be;
+    -fx-text-fill: #4c4f69;
+}
+
+.button:hover {
+    -fx-background-color: #ccd0da;
+    -fx-border-color: #9ca0b0;
+}
+
+.button:pressed {
+    -fx-background-color: #acb0be;
+}
+
+.accent-button {
+    -fx-background-color: #1e66f5;
+    -fx-text-fill: #eff1f5;
+}
+
+.accent-button:hover {
+    -fx-background-color: #4c8dff;
+}
+
+.accent-button:pressed {
+    -fx-background-color: #1a55c8;
+}
+
+/* ── Pestañas ───────────────────────────────────────────── */
+
+.tab-pane .tab-header-background {
+    -fx-background-color: #e6e9ef;
+}
+
+.tab-pane .tab .tab-label {
+    -fx-text-fill: #6c6f85;
+}
+
+.tab-pane .tab:hover .tab-label {
+    -fx-text-fill: #4c4f69;
+}
+
+.tab-pane .tab:selected {
+    -fx-background-color: #eff1f5;
+}
+
+.tab-pane .tab:selected .tab-label {
+    -fx-text-fill: #1e66f5;
+}
+
+/* ── Listas y árboles ───────────────────────────────────── */
+
+.list-cell,
+.tree-cell {
+    -fx-text-fill: #4c4f69;
+}
+
+.list-cell:filled:hover,
+.tree-cell:filled:hover {
+    -fx-background-color: #ccd0da66;
+}
+
+.list-cell:filled:selected,
+.tree-cell:filled:selected {
+    -fx-background-color: #ccd0da;
+}
+
+/* ── SplitPane ──────────────────────────────────────────── */
+
+.split-pane > .split-pane-divider {
+    -fx-background-color: #dce0e8;
+}
+
+/* ── Campos de texto ────────────────────────────────────── */
+
+.text-field,
+.text-area {
+    -fx-background-color: #ffffff;
+    -fx-border-color: #acb0be;
+    -fx-text-fill: #4c4f69;
+}
+
+.text-area .content {
+    -fx-background-color: #ffffff;
+}
+
+.text-field:focused,
+.text-area:focused {
+    -fx-border-color: #1e66f5;
+}
+
+/* ── Scrollbars ─────────────────────────────────────────── */
+
+.scroll-bar .thumb {
+    -fx-background-color: #acb0be;
+}
+
+.scroll-bar .thumb:hover {
+    -fx-background-color: #9ca0b0;
+}
+
+/* ── ProgressBar ────────────────────────────────────────── */
+
+.progress-bar > .track {
+    -fx-background-color: #ccd0da;
+}
+
+.progress-bar > .bar {
+    -fx-background-color: #1e66f5;
+}
+
+/* ── Historial ──────────────────────────────────────────── */
+
+.graph-message {
+    -fx-text-fill: #4c4f69;
+}
+
+.graph-meta {
+    -fx-text-fill: #7c7f93;
+}
+
+.graph-hash {
+    -fx-text-fill: #9ca0b0;
+}
+
+.ref-local {
+    -fx-background-color: #1e66f5;
+    -fx-text-fill: #eff1f5;
+}
+
+.ref-remote {
+    -fx-background-color: #acb0be;
+    -fx-text-fill: #4c4f69;
+}
+
+.ref-tag {
+    -fx-background-color: #df8e1d;
+    -fx-text-fill: #eff1f5;
+}
+
+.ref-head {
+    -fx-border-color: #40a02b;
+}
+
+/* ── Panel de ramas ─────────────────────────────────────── */
+
+.branch-header {
+    -fx-text-fill: #7c7f93;
+}
+
+.branch-tag {
+    -fx-text-fill: #df8e1d;
+}
+
+.branch-label {
+    -fx-text-fill: #1e66f5;
+}
+
+/* ── Diff ───────────────────────────────────────────────── */
+
+.diff-view {
+    -fx-background-color: #e6e9ef;
+}
+
+.diff-view .list-cell {
+    -fx-text-fill: #6c6f85;
+}
+
+.diff-line-add {
+    -fx-text-fill: #40a02b;
+    -fx-background-color: #40a02b22;
+}
+
+.diff-line-del {
+    -fx-text-fill: #d20f39;
+    -fx-background-color: #d20f3922;
+}
+
+.diff-line-hunk {
+    -fx-text-fill: #1e66f5;
+}
+
+.hunk-button {
+    -fx-background-color: #1e66f522;
+    -fx-text-fill: #1e66f5;
+    -fx-border-color: #1e66f555;
+}
+
+.hunk-button:hover {
+    -fx-background-color: #1e66f544;
+}
+
+.diff-line-meta {
+    -fx-text-fill: #7c7f93;
+}
+
+/* ── Badges de estado ───────────────────────────────────── */
+
+.badge-add {
+    -fx-background-color: #40a02b;
+    -fx-text-fill: #eff1f5;
+}
+
+.badge-mod {
+    -fx-background-color: #df8e1d;
+    -fx-text-fill: #eff1f5;
+}
+
+.badge-del {
+    -fx-background-color: #d20f39;
+    -fx-text-fill: #eff1f5;
+}
+
+.badge-ren {
+    -fx-background-color: #1e66f5;
+    -fx-text-fill: #eff1f5;
+}
+
+/* ── Detalle de commit ──────────────────────────────────── */
+
+.section-header {
+    -fx-text-fill: #7c7f93;
+}
+
+.commit-message-title {
+    -fx-text-fill: #4c4f69;
+}
+
+.detail-meta {
+    -fx-text-fill: #7c7f93;
+}
+
+/* ── Bienvenida ─────────────────────────────────────────── */
+
+.welcome-title {
+    -fx-text-fill: #4c4f69;
+}
+
+.welcome-sub {
+    -fx-text-fill: #7c7f93;
+}
+
+/* ── Diálogos ───────────────────────────────────────────── */
+
+.dialog-pane {
+    -fx-background-color: #eff1f5;
+}
+
+.dialog-pane .header-panel {
+    -fx-background-color: #e6e9ef;
+}
+
+/* ── Menús ──────────────────────────────────────────────── */
+
+.menu-bar {
+    -fx-background-color: #dce0e8;
+}
+
+.menu-bar .label {
+    -fx-text-fill: #6c6f85;
+}
+
+.menu-bar > .container > .menu-button:hover,
+.menu-bar > .container > .menu-button:showing {
+    -fx-background-color: #ccd0da;
+}
+
+.menu-item:focused {
+    -fx-background-color: #ccd0da;
+}
+
+.menu-item .label {
+    -fx-text-fill: #4c4f69;
+}
+
+.context-menu {
+    -fx-background-color: #eff1f5;
+    -fx-border-color: #acb0be;
+}
+
+/* ── Barra de acciones del repo ─────────────────────────── */
+
+.action-bar {
+    -fx-background-color: #e6e9ef;
+}
+
+.menu-button {
+    -fx-border-color: #acb0be;
+    -fx-text-fill: #4c4f69;
+}
+
+.menu-button:hover {
+    -fx-background-color: #ccd0da;
+}
+
+.menu-button:showing {
+    -fx-background-color: #acb0be;
+}
+
+/* ── Cabecera de columnas del historial ─────────────────── */
+
+.column-header {
+    -fx-background-color: #e6e9ef;
+}
+
+.column-header .label {
+    -fx-text-fill: #7c7f93;
+}
+
+/* ── Detalle de commit ──────────────────────────────────── */
+
+.detail-hash {
+    -fx-text-fill: #7c7f93;
+}
+
+.commit-author {
+    -fx-text-fill: #4c4f69;
+}
+
+/* ── Paleta de comandos (Ctrl+K) ────────────────────────── */
+
+.command-palette {
+    -fx-background-color: #eff1f5;
+}
+
+.command-palette-box .list-view {
+    -fx-background-color: #e6e9ef;
+    -fx-border-color: #ccd0da;
+}
+
+.command-palette-box .list-cell:filled:selected {
+    -fx-background-color: #ccd0da;
+}
+
+.command-palette-box > .label {
+    -fx-text-fill: #7c7f93;
+}
+
+/* ── Blame ──────────────────────────────────────────────── */
+
+.blame-box > .label {
+    -fx-text-fill: #7c7f93;
+}
+
+.blame-author {
+    -fx-text-fill: #4c4f69;
+}
+
+.blame-number {
+    -fx-text-fill: #7c7f93;
+}
+
+.blame-text {
+    -fx-text-fill: #6c6f85;
+}
+
+/* ── Barra de merge en curso / editor de conflictos ─────── */
+
+.merge-bar {
+    -fx-background-color: #f5d7df;
+}
+
+.merge-bar-label {
+    -fx-text-fill: #d20f39;
+}
+
+/* ── Toggle Path/Tree del panel de detalle ──────────────── */
+
+.view-toggle {
+    -fx-background-color: #ccd0da;
+    -fx-text-fill: #6c6f85;
+}
+
+.view-toggle:selected {
+    -fx-background-color: #acb0be;
+    -fx-text-fill: #eff1f5;
+}
+
+/* ── Toasts ─────────────────────────────────────────────── */
+
+.toast {
+    -fx-background-color: #ffffff;
+    -fx-text-fill: #4c4f69;
+    -fx-border-color: #1e66f5;
+    -fx-effect: dropshadow(gaussian, rgba(0, 0, 0, 0.25), 12, 0.3, 0, 3);
+}

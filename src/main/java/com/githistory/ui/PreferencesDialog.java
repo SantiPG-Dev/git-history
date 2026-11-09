@@ -1,9 +1,11 @@
 package com.githistory.ui;
 
+import com.githistory.AppConfig;
 import javafx.geometry.Insets;
 import javafx.scene.control.Alert;
 import javafx.scene.control.ButtonType;
 import javafx.scene.control.CheckBox;
+import javafx.scene.control.ComboBox;
 import javafx.scene.control.Dialog;
 import javafx.scene.control.Label;
 import javafx.scene.control.TextField;
@@ -70,6 +72,22 @@ public class PreferencesDialog extends Dialog<Void> {
         VBox box = new VBox(10, globalTitle, globalGrid, signTitle, signBox, signGrid);
         box.setPadding(new Insets(12));
 
+        String theme0 = AppConfig.load().theme();
+        ComboBox<String> themeBox = new ComboBox<>();
+        themeBox.getItems().addAll("Oscuro", "Claro");
+        themeBox.getSelectionModel().select(Themes.LIGHT.equals(theme0) ? 1 : 0);
+        // Vista previa en vivo sobre la ventana principal.
+        themeBox.getSelectionModel().selectedIndexProperty().addListener(
+                (obs, o, index) -> Themes.apply(owner.getScene(),
+                        index.intValue() == 1 ? Themes.LIGHT : Themes.DARK));
+        Label appearanceTitle = new Label("Apariencia");
+        appearanceTitle.getStyleClass().add("prefs-section-title");
+        GridPane appearanceGrid = new GridPane();
+        appearanceGrid.setHgap(8);
+        appearanceGrid.setVgap(8);
+        appearanceGrid.addRow(0, new Label("Tema:"), themeBox);
+        box.getChildren().addAll(appearanceTitle, appearanceGrid);
+
         CheckBox repoOverride = null;
         TextField repoName = null;
         TextField repoEmail = null;
@@ -127,6 +145,10 @@ public class PreferencesDialog extends Dialog<Void> {
                     global.setBoolean("commit", null, "gpgsign", signBox.isSelected());
                     global.setString("user", null, "signingkey", emptyToNull(keyField.getText()));
                     global.save();
+                    AppConfig config = AppConfig.load();
+                    config.setTheme(themeBox.getSelectionModel().getSelectedIndex() == 1
+                            ? Themes.LIGHT : Themes.DARK);
+                    config.save();
                     if (activeRepo != null) {
                         if (override.isSelected()) {
                             activeRepo.git().setIdentity(rn.getText().trim(), re.getText().trim());
@@ -139,6 +161,9 @@ public class PreferencesDialog extends Dialog<Void> {
                             "No se pudieron guardar las preferencias: " + ex.getMessage())
                             .showAndWait();
                 }
+            } else {
+                // Cancelar: revierte la vista previa del tema.
+                Themes.apply(owner.getScene(), theme0);
             }
             return null;
         });

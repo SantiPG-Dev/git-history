@@ -12,8 +12,8 @@ import java.util.Properties;
 /**
  * Configuración persistente de la app en
  * {@code $XDG_CONFIG_HOME/git-history/git-history.properties}
- * (por defecto {@code ~/.config/git-history/}). De momento guarda las
- * pestañas de repositorios abiertas para restaurarlas al arrancar.
+ * (por defecto {@code ~/.config/git-history/}). Guarda las pestañas de
+ * repositorios abiertas para restaurarlas al arrancar y el tema visual.
  */
 public final class AppConfig {
 
@@ -62,6 +62,15 @@ public final class AppConfig {
         props.setProperty("repos", repos.stream()
                 .map(Path::toString)
                 .collect(java.util.stream.Collectors.joining(java.io.File.pathSeparator)));
+    }
+
+    /** Tema visual: "dark" (por defecto) o "light". */
+    public String theme() {
+        return props.getProperty("theme", "dark");
+    }
+
+    public void setTheme(String theme) {
+        props.setProperty("theme", theme);
     }
 
     public void save() throws IOException {
