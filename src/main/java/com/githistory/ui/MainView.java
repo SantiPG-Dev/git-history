@@ -75,8 +75,22 @@ public class MainView {
             if (new KeyCodeCombination(KeyCode.K, KeyCombination.SHORTCUT_DOWN).match(e)) {
                 showCommandPalette();
                 e.consume();
+            } else if (new KeyCodeCombination(KeyCode.PLUS, KeyCombination.SHORTCUT_DOWN).match(e)
+                    || new KeyCodeCombination(KeyCode.ADD, KeyCombination.SHORTCUT_DOWN).match(e)
+                    || new KeyCodeCombination(KeyCode.EQUALS, KeyCombination.SHORTCUT_DOWN).match(e)) {
+                adjustFontSize(1);
+                e.consume();
+            } else if (new KeyCodeCombination(KeyCode.MINUS, KeyCombination.SHORTCUT_DOWN).match(e)
+                    || new KeyCodeCombination(KeyCode.SUBTRACT, KeyCombination.SHORTCUT_DOWN).match(e)) {
+                adjustFontSize(-1);
+                e.consume();
+            } else if (new KeyCodeCombination(KeyCode.DIGIT0, KeyCombination.SHORTCUT_DOWN).match(e)
+                    || new KeyCodeCombination(KeyCode.NUMPAD0, KeyCombination.SHORTCUT_DOWN).match(e)) {
+                resetFontSize();
+                e.consume();
             }
         });
+        applyFontSize(AppConfig.load().fontSize());
 
         progressBar.setVisible(false);
         progressBar.setPrefWidth(220);
@@ -93,6 +107,54 @@ public class MainView {
 
     public BorderPane getRoot() {
         return root;
+    }
+
+    /** Zoom de la interfaz: escala la fuente base (Ctrl +/-/0). */
+    private void adjustFontSize(double delta) {
+        double size = Math.min(20, Math.max(8, currentFontSize() + delta));
+        applyFontSize(size, true);
+        persistFontSize(size);
+    }
+
+    private void resetFontSize() {
+        applyFontSize(AppConfig.DEFAULT_FONT_SIZE, true);
+        persistFontSize(AppConfig.DEFAULT_FONT_SIZE);
+    }
+
+    private double currentFontSize() {
+        String style = root.getStyle();
+        if (style != null && style.contains("-fx-font-size:")) {
+            String value = style.split("-fx-font-size:")[1].replace("px;", "").trim();
+            try {
+                return Double.parseDouble(value);
+            } catch (NumberFormatException ignored) {
+                // Estilo corrupto: se usa el valor por defecto.
+            }
+        }
+        return AppConfig.DEFAULT_FONT_SIZE;
+    }
+
+    private void applyFontSize(double size) {
+        applyFontSize(size, false);
+    }
+
+    private void applyFontSize(double size, boolean feedback) {
+        root.setStyle("-fx-font-size: " + size + "px;");
+        RepoView active = feedback ? activeRepo() : null;
+        if (active != null) {
+            active.toast("Zoom: "
+                    + Math.round(size / AppConfig.DEFAULT_FONT_SIZE * 100) + "%");
+        }
+    }
+
+    private void persistFontSize(double size) {
+        try {
+            AppConfig config = AppConfig.load();
+            config.setFontSize(size);
+            config.save();
+        } catch (java.io.IOException ignored) {
+            // Sin persistencia: el zoom se mantiene solo para esta sesión.
+        }
     }
 
     public <T> void runGlobalTask(String description, TaskRunner.Work<T> work, Consumer<T> onSuccess) {
