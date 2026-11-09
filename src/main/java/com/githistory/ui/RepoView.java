@@ -92,6 +92,7 @@ public class RepoView {
     private int historyMaxLanes = 1;
     private Path repoPath;
     private TerminalView terminalView;
+    private Toaster toaster;
     private VBox centerWrap;
     private List<GraphRow> allRows = List.of();
     private List<GitService.BranchInfo> lastBranches = List.of();
@@ -194,7 +195,10 @@ public class RepoView {
         root.setTop(buildActionBar());
         centerWrap = new VBox(split);
         VBox.setVgrow(split, Priority.ALWAYS);
-        root.setCenter(centerWrap);
+        javafx.scene.layout.StackPane centerStack =
+                new javafx.scene.layout.StackPane(centerWrap);
+        toaster = new Toaster(centerStack);
+        root.setCenter(centerStack);
         root.setBottom(buildStatusBar());
 
         root.addEventFilter(KeyEvent.KEY_PRESSED, e -> {
@@ -261,6 +265,11 @@ public class RepoView {
 
     public <T> void runTask(String description, TaskRunner.Work<T> work, Consumer<T> onSuccess) {
         TaskRunner.run(executor, description, statusLabel, progressBar, work, onSuccess);
+    }
+
+    /** Muestra una notificación transitoria en la esquina inferior derecha. */
+    public void toast(String message) {
+        toaster.show(message);
     }
 
     public org.eclipse.jgit.transport.CredentialsProvider credentialsProvider() {
@@ -344,7 +353,10 @@ public class RepoView {
             runTask("Fetch en curso…", p -> {
                 git.fetch(credentials, p);
                 return null;
-            }, v -> refreshAll());
+            }, v -> {
+                toast("✓ Fetch completado");
+                refreshAll();
+            });
         }
     }
 
@@ -353,7 +365,10 @@ public class RepoView {
             runTask("Pull en curso…", p -> {
                 git.pull(credentials, p);
                 return null;
-            }, v -> refreshAll());
+            }, v -> {
+                toast("✓ Pull completado");
+                refreshAll();
+            });
         }
     }
 
@@ -376,13 +391,19 @@ public class RepoView {
                     runTask("Publicando " + current, p -> {
                         git.pushSetUpstream(current, "origin", credentials, p);
                         return null;
-                    }, v -> refreshAll()));
+                    }, v -> {
+                        toast("✓ Rama «" + current + "» publicada en origin");
+                        refreshAll();
+                    }));
             return;
         }
         runTask("Push en curso…", p -> {
             git.push(credentials, p);
             return null;
-        }, v -> refreshAll());
+        }, v -> {
+            toast("✓ Push completado");
+            refreshAll();
+        });
     }
 
     /** Push forzado con confirmación (tras squash/amend/rebase). */
@@ -398,7 +419,10 @@ public class RepoView {
                 runTask("Push forzado en curso…", p -> {
                     git.pushForce(credentials, p);
                     return null;
-                }, v -> refreshAll()));
+                }, v -> {
+                    toast("✓ Push forzado completado");
+                    refreshAll();
+                }));
     }
 
     // ── Barra de acciones ────────────────────────────────────────────────
@@ -542,6 +566,7 @@ public class RepoView {
                 g -> g.resetSoft(preSha),
                 g -> g.commit(message)));
         updateUndoButtons();
+        toast("✓ Commit: " + abbrev(message) + " · Ctrl+Z para deshacer");
     }
 
     private void recordCheckout(String target, String previousRef) {
@@ -552,6 +577,7 @@ public class RepoView {
                 g -> g.checkout(previousRef),
                 g -> g.checkout(target)));
         updateUndoButtons();
+        toast("✓ Checkout: " + target + " · Ctrl+Z para deshacer");
     }
 
     private void recordCreateBranch(String name, String sha, String previousRef) {
@@ -592,6 +618,7 @@ public class RepoView {
         }, v -> {
             undoManager.confirmUndo();
             updateUndoButtons();
+            toast("↩ Deshecho: " + action.label());
             refreshAll();
         });
     }
@@ -607,6 +634,7 @@ public class RepoView {
         }, v -> {
             undoManager.confirmRedo();
             updateUndoButtons();
+            toast("↪ Rehecho: " + action.label());
             refreshAll();
         });
     }
@@ -620,6 +648,7 @@ public class RepoView {
                       UndoManager.GitAction redo) {
         undoManager.push(new UndoManager.Action(label, undo, redo));
         updateUndoButtons();
+        toast("✓ " + label + " · Ctrl+Z para deshacer");
     }
 
     // ── Cherry-pick / Revert / Reset / Merge ─────────────────────────────
@@ -972,7 +1001,10 @@ public class RepoView {
             runTask("Push de etiquetas…", p -> {
                 git.pushTags(credentials, p);
                 return null;
-            }, v -> refreshAll());
+            }, v -> {
+                toast("✓ Etiquetas enviadas al remoto");
+                refreshAll();
+            });
         }
     }
 
