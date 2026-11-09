@@ -110,6 +110,7 @@ public class RepoView {
         stagingView = new StagingView(this);
 
         historyList = new ListView<>();
+        historyList.getStyleClass().add("graph-list");
         historyList.setFixedCellSize(HistoryCell.ROW_HEIGHT);
         historyList.setCellFactory(lv -> new HistoryCell(() -> historyMaxLanes, avatars::get,
                 new HistoryCell.CommitActions() {

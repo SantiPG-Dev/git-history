@@ -72,11 +72,30 @@ public class HistoryCell extends ListCell<GraphRow> {
         author.getStyleClass().add("graph-meta");
         date.getStyleClass().add("graph-meta");
         hash.getStyleClass().add("graph-hash");
+        author.setMaxWidth(150);
+        date.setMaxWidth(100);
+        hash.setMaxWidth(70);
         refsBox.setAlignment(Pos.CENTER_LEFT);
-        Region spacer = new Region();
-        HBox.setHgrow(spacer, Priority.ALWAYS);
-        box = new HBox(8, canvas, refsBox, message, spacer, author, date, hash);
+        // El mensaje absorbe el hueco sobrante y se trunca con elipsis al
+        // llegar a su ancho mínimo; así autor/fecha/hash no salen de la fila.
+        message.setMinWidth(40);
+        HBox.setHgrow(message, Priority.ALWAYS);
+        box = new HBox(8, canvas, refsBox, message, author, date, hash);
         box.setAlignment(Pos.CENTER_LEFT);
+        listViewProperty().addListener((obs, o, lv) -> {
+            if (lv != null) {
+                lv.widthProperty().addListener((obs2, o2, w) -> clipToViewport());
+            }
+        });
+    }
+
+    private void clipToViewport() {
+        var lv = getListView();
+        if (lv == null) {
+            return;
+        }
+        // La celda no debe pintar fuera del viewport (la hbar va oculta).
+        box.setClip(new javafx.scene.shape.Rectangle(lv.getWidth(), ROW_HEIGHT));
     }
 
     @Override
@@ -107,8 +126,11 @@ public class HistoryCell extends ListCell<GraphRow> {
         }
         message.setText(row.commit().message());
         author.setText(row.commit().author());
-        date.setText(TIME_FORMAT.format(row.commit().time()));
+        date.setText(RelativeTime.format(row.commit().time()));
+        date.setTooltip(new javafx.scene.control.Tooltip(
+                TIME_FORMAT.format(row.commit().time())));
         hash.setText(row.commit().shortId());
+        clipToViewport();
 
         MenuItem branch = new MenuItem("Crear rama aquí…");
         branch.setOnAction(e -> actions.createBranchAt(row.commit()));
