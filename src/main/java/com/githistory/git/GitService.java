@@ -289,6 +289,25 @@ public class GitService implements AutoCloseable {
         git.clean().setCleanDirectories(true).call();
     }
 
+    /**
+     * Añade un patrón al .gitignore de la raíz (lo crea si no existe y evita
+     * duplicados). Devuelve false si el patrón ya estaba.
+     */
+    public boolean addGitignorePattern(String pattern) throws IOException {
+        Path gitignore = repo.getWorkTree().toPath().resolve(".gitignore");
+        List<String> lines = Files.isRegularFile(gitignore)
+                ? new ArrayList<>(Files.readAllLines(gitignore))
+                : new ArrayList<>();
+        for (String line : lines) {
+            if (line.trim().equals(pattern)) {
+                return false;
+            }
+        }
+        lines.add(pattern);
+        Files.write(gitignore, lines);
+        return true;
+    }
+
     /** SHA del commit al que apunta HEAD, o null si la rama aún no nació. */
     public String headSha() throws IOException {
         ObjectId id = repo.resolve(Constants.HEAD);

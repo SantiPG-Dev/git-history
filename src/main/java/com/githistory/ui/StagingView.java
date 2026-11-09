@@ -415,6 +415,26 @@ public class StagingView {
         }
     }
 
+    private static String extensionOf(String path) {
+        String name = path.contains("/")
+                ? path.substring(path.lastIndexOf('/') + 1) : path;
+        int dot = name.lastIndexOf('.');
+        return dot > 0 && dot < name.length() - 1
+                ? name.substring(dot + 1) : null;
+    }
+
+    /** Añade el archivo (o su extensión) al .gitignore de la raíz. */
+    private void ignoreFile(String path, boolean byExtension) {
+        String pattern = byExtension ? "*." + extensionOf(path) : path;
+        repo.runTask("Ignorando " + pattern, p -> {
+            repo.git().addGitignorePattern(pattern);
+            return null;
+        }, v -> {
+            repo.toast("✓ «" + pattern + "» añadido a .gitignore");
+            repo.refreshAll();
+        });
+    }
+
     private class StatusCell extends ListCell<GitService.StatusEntry> {
 
         private final boolean unstaged;
@@ -450,7 +470,21 @@ public class StagingView {
             } else if (unstaged) {
                 MenuItem discard = new MenuItem("Descartar cambios");
                 discard.setOnAction(e -> discardFile(entry));
-                setContextMenu(new ContextMenu(discard));
+                if (entry.state().equals("Nuevo")) {
+                    MenuItem ignore = new MenuItem("Ignorar este archivo");
+                    ignore.setOnAction(e -> ignoreFile(entry.path(), false));
+                    String ext = extensionOf(entry.path());
+                    MenuItem ignoreExt = new MenuItem(
+                            ext == null ? "Ignorar por extensión"
+                                    : "Ignorar «*." + ext + "»");
+                    ignoreExt.setDisable(ext == null);
+                    ignoreExt.setOnAction(e -> ignoreFile(entry.path(), true));
+                    setContextMenu(new ContextMenu(discard,
+                            new javafx.scene.control.SeparatorMenuItem(),
+                            ignore, ignoreExt));
+                } else {
+                    setContextMenu(new ContextMenu(discard));
+                }
             }
         }
     }
