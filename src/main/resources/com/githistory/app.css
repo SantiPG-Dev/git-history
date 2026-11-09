@@ -604,3 +604,9 @@
     -fx-border-radius: 8;
     -fx-effect: dropshadow(gaussian, rgba(0, 0, 0, 0.5), 12, 0.3, 0, 3);
 }
+
+/* El grafo no usa barra horizontal: las filas se recortan al viewport. */
+.graph-list .scroll-bar:horizontal {
+    -fx-opacity: 0;
+    -fx-pref-height: 0;
+}

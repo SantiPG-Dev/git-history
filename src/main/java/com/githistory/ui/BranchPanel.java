@@ -112,29 +112,29 @@ public class BranchPanel {
         String filter = filterField.getText() == null
                 ? "" : filterField.getText().trim().toLowerCase();
         TreeItem<Object> rootItem = new TreeItem<>();
-        TreeItem<Object> locals = section("LOCAL",
+        TreeItem<Object> locals = section("⌂ LOCAL",
                 lastData.locals().stream().filter(b -> matches(b.shortName(), filter)).toList());
-        TreeItem<Object> remotes = section("REMOTO",
+        TreeItem<Object> remotes = section("☁ REMOTO",
                 lastData.remotes().stream().filter(b -> matches(b.shortName(), filter)).toList());
-        TreeItem<Object> tags = section("ETIQUETAS",
+        TreeItem<Object> tags = section("◈ ETIQUETAS",
                 lastData.tags().stream().filter(t -> matches(t, filter)).map(TagInfo::new).toList());
-        TreeItem<Object> stashes = section("STASH", lastData.stashes());
-        TreeItem<Object> submodules = section("SUBMÓDULOS", lastData.submodules());
+        TreeItem<Object> stashes = section("≡ STASH", lastData.stashes());
+        TreeItem<Object> submodules = section("⊞ SUBMÓDULOS", lastData.submodules());
         locals.setExpanded(true);
         remotes.setExpanded(true);
         rootItem.getChildren().addAll(locals, remotes, tags, stashes, submodules);
         if (lastData.lfs() != null && (lastData.lfs().enabled()
                 || !lastData.lfs().patterns().isEmpty())) {
-            rootItem.getChildren().add(section("LFS", List.of(lastData.lfs())));
+            rootItem.getChildren().add(section("▲ LFS", List.of(lastData.lfs())));
         }
-        TreeItem<Object> worktrees = section("WORKTREES", lastData.worktrees());
+        TreeItem<Object> worktrees = section("⎇ WORKTREES", lastData.worktrees());
         worktrees.setExpanded(true);
         rootItem.getChildren().add(worktrees);
         if (lastData.pullRequests() != null) {
-            rootItem.getChildren().add(section("PULL REQUESTS", lastData.pullRequests()));
+            rootItem.getChildren().add(section("⤿ PULL REQUESTS", lastData.pullRequests()));
         }
         if (lastData.issues() != null) {
-            rootItem.getChildren().add(section("ISSUES", lastData.issues()));
+            rootItem.getChildren().add(section("◉ ISSUES", lastData.issues()));
         }
         tree.setRoot(rootItem);
     }
@@ -407,7 +407,7 @@ public class BranchPanel {
             if (item instanceof String header) {
                 setText(header);
                 getStyleClass().add("branch-header");
-                if (header.startsWith("WORKTREES")) {
+                if (header.contains("WORKTREES")) {
                     MenuItem create = new MenuItem("Nuevo worktree…");
                     create.setOnAction(e -> createWorktree());
                     setContextMenu(new ContextMenu(create));
