@@ -593,3 +593,14 @@
     -fx-text-fill: #cdd6f4;
     -fx-font-weight: bold;
 }
+
+.toast {
+    -fx-background-color: #313244;
+    -fx-text-fill: #cdd6f4;
+    -fx-padding: 10 16 10 16;
+    -fx-background-radius: 8;
+    -fx-border-color: #89b4fa;
+    -fx-border-width: 0 0 0 3;
+    -fx-border-radius: 8;
+    -fx-effect: dropshadow(gaussian, rgba(0, 0, 0, 0.5), 12, 0.3, 0, 3);
+}
