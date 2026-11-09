@@ -73,6 +73,22 @@ public final class AppConfig {
         props.setProperty("theme", theme);
     }
 
+    public static final double DEFAULT_FONT_SIZE = 12.5;
+
+    /** Tamaño de fuente base de la interfaz (zoom). */
+    public double fontSize() {
+        try {
+            return Double.parseDouble(
+                    props.getProperty("fontSize", String.valueOf(DEFAULT_FONT_SIZE)));
+        } catch (NumberFormatException e) {
+            return DEFAULT_FONT_SIZE;
+        }
+    }
+
+    public void setFontSize(double size) {
+        props.setProperty("fontSize", String.valueOf(size));
+    }
+
     public void save() throws IOException {
         Files.createDirectories(file.getParent());
         try (OutputStream out = Files.newOutputStream(file)) {
