@@ -1,7 +1,6 @@
 package com.githistory.git;
 
 import org.eclipse.jgit.api.CreateBranchCommand;
-import org.eclipse.jgit.api.DiffCommand;
 import org.eclipse.jgit.api.Git;
 import org.eclipse.jgit.api.ListBranchCommand;
 import org.eclipse.jgit.api.RebaseCommand;
@@ -15,6 +14,7 @@ import org.eclipse.jgit.diff.DiffEntry;
 import org.eclipse.jgit.diff.DiffFormatter;
 import org.eclipse.jgit.diff.Edit;
 import org.eclipse.jgit.diff.RawText;
+import org.eclipse.jgit.diff.RawTextComparator;
 import org.eclipse.jgit.dircache.DirCache;
 import org.eclipse.jgit.dircache.DirCacheEditor;
 import org.eclipse.jgit.dircache.DirCacheEntry;
@@ -795,13 +795,60 @@ public class GitService implements AutoCloseable {
      * verdadero (cambios preparados).
      */
     public String workingTreeDiff(String path, boolean staged) throws GitAPIException {
-        ByteArrayOutputStream out = new ByteArrayOutputStream();
-        DiffCommand cmd = git.diff().setOutputStream(out).setCached(staged);
-        if (path != null) {
-            cmd.setPathFilter(PathFilter.create(path));
+        return workingTreeDiff(path, staged, false);
+    }
+
+    /**
+     * Igual que {@link #workingTreeDiff(String, boolean)}, pero con
+     * {@code ignoreWs} omite los cambios que solo alteran espacios en blanco
+     * (como {@code git diff -w}).
+     */
+    public String workingTreeDiff(String path, boolean staged, boolean ignoreWs)
+            throws GitAPIException {
+        try {
+            ObjectId headId = repo.resolve(Constants.HEAD);
+            try (ObjectReader reader = repo.newObjectReader()) {
+                AbstractTreeIterator oldTree;
+                if (staged) {
+                    if (headId == null) {
+                        oldTree = new EmptyTreeIterator();
+                    } else {
+                        try (RevWalk walk = new RevWalk(repo)) {
+                            oldTree = new CanonicalTreeParser(null, reader,
+                                    walk.parseCommit(headId).getTree().getId());
+                        }
+                    }
+                } else {
+                    oldTree = new DirCacheIterator(repo.readDirCache());
+                }
+                AbstractTreeIterator newTree = staged
+                        ? new DirCacheIterator(repo.readDirCache())
+                        : new FileTreeIterator(repo);
+                ByteArrayOutputStream out = new ByteArrayOutputStream();
+                try (DiffFormatter formatter = new DiffFormatter(out)) {
+                    formatter.setRepository(repo);
+                    if (path != null) {
+                        formatter.setPathFilter(PathFilter.create(path));
+                    }
+                    if (ignoreWs) {
+                        formatter.setDiffComparator(RawTextComparator.WS_IGNORE_ALL);
+                    }
+                    // El scan configura el content source del working tree;
+                    // hay que reusar ESTE formatter para formatear luego.
+                    for (DiffEntry entry : formatter.scan(oldTree, newTree)) {
+                        // Con ignore-espacios, un cambio de solo whitespace
+                        // produce un FileHeader sin hunks: se omite entero.
+                        if (ignoreWs && formatter.toFileHeader(entry).toEditList().isEmpty()) {
+                            continue;
+                        }
+                        formatter.format(entry);
+                    }
+                }
+                return out.toString(StandardCharsets.UTF_8);
+            }
+        } catch (IOException e) {
+            throw new GitAPIException("No se pudo calcular el diff: " + e.getMessage(), e) {};
         }
-        cmd.call();
-        return out.toString(StandardCharsets.UTF_8);
     }
 
     /** Contenido de un archivo sin seguimiento (los untracked no tienen diff). */
