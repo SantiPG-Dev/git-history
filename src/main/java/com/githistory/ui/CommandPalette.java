@@ -25,7 +25,7 @@ public class CommandPalette {
     private CommandPalette() {}
 
     public static void show(Window owner, List<Command> commands) {
-        Dialog<Void> dialog = new Dialog<>();
+        Dialog<Void> dialog = new ThemedDialog<>();
         dialog.initOwner(owner);
         dialog.setTitle("Paleta de comandos");
         dialog.setHeaderText(null);

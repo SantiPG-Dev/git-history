@@ -29,7 +29,7 @@ public class BlameView {
 
     public static void show(Window owner, String path, List<GitService.BlameLine> lines,
                             Consumer<String> onJumpToCommit) {
-        Dialog<Void> dialog = new Dialog<>();
+        Dialog<Void> dialog = new ThemedDialog<>();
         dialog.initOwner(owner);
         dialog.setTitle("Blame: " + path);
         dialog.setHeaderText(null);

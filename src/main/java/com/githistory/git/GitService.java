@@ -1506,10 +1506,22 @@ public class GitService implements AutoCloseable {
 
     /** @return false si no había cambios que guardar. */
     public boolean stashCreate(String message) throws GitAPIException {
+        return stashCreate(message, false);
+    }
+
+    /**
+     * Igual que {@link #stashCreate(String)}, pero con {@code includeUntracked}
+     * también guarda los archivos sin seguimiento (como {@code git stash -u}).
+     *
+     * @return false si no había cambios que guardar.
+     */
+    public boolean stashCreate(String message, boolean includeUntracked)
+            throws GitAPIException {
         var cmd = git.stashCreate();
         if (message != null && !message.isBlank()) {
             cmd.setWorkingDirectoryMessage(message);
         }
+        cmd.setIncludeUntracked(includeUntracked);
         return cmd.call() != null;
     }
 

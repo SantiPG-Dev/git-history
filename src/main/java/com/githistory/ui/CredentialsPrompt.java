@@ -88,7 +88,7 @@ public class CredentialsPrompt extends CredentialsProvider {
         for (CredentialItem item : items) {
             message.append(item.getPromptText()).append('\n');
         }
-        Alert alert = new Alert(Alert.AlertType.CONFIRMATION,
+        Alert alert = new ThemedAlert(Alert.AlertType.CONFIRMATION,
                 message.toString().trim(), ButtonType.YES, ButtonType.NO);
         alert.setTitle("Confirmación de seguridad");
         alert.setHeaderText("Conexión a " + uri);
@@ -103,7 +103,7 @@ public class CredentialsPrompt extends CredentialsProvider {
 
     /** Formulario de credenciales: usuario/contraseña, passphrases, etc. */
     private boolean promptForm(URIish uri, CredentialItem... items) {
-        Dialog<ButtonType> dialog = new Dialog<>();
+        Dialog<ButtonType> dialog = new ThemedDialog<>();
         dialog.setTitle("Credenciales");
         dialog.setHeaderText("Introduce las credenciales para\n" + uri);
         dialog.getDialogPane().getButtonTypes().addAll(ButtonType.OK, ButtonType.CANCEL);

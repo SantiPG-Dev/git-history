@@ -9,11 +9,13 @@ import javafx.beans.property.IntegerProperty;
 import javafx.beans.property.SimpleIntegerProperty;
 import javafx.collections.ListChangeListener;
 import javafx.geometry.Orientation;
+import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.Node;
 import javafx.scene.control.Alert;
 import javafx.scene.control.Button;
 import javafx.scene.control.ButtonType;
+import javafx.scene.control.CheckBox;
 import javafx.scene.control.Dialog;
 import javafx.scene.control.Label;
 import javafx.scene.control.ListView;
@@ -384,7 +386,7 @@ public class RepoView {
             // Sin rama activa.
         }
         if (branch != null && !git.hasUpstream(branch) && git.remoteUrl("origin") != null) {
-            Alert confirm = new Alert(Alert.AlertType.CONFIRMATION,
+            Alert confirm = new ThemedAlert(Alert.AlertType.CONFIRMATION,
                     "La rama «" + branch + "» no tiene upstream. ¿Publicarla en origin?");
             confirm.setHeaderText("Publicar rama");
             String current = branch;
@@ -412,7 +414,7 @@ public class RepoView {
         if (!git.isOpen()) {
             return;
         }
-        Alert confirm = new Alert(Alert.AlertType.WARNING,
+        Alert confirm = new ThemedAlert(Alert.AlertType.WARNING,
                 "El push forzado sobrescribe la rama remota con la local. Si otros"
                         + " han empujado commits que no tienes, se perderán. ¿Continuar?");
         confirm.setHeaderText("Push forzado");
@@ -693,7 +695,7 @@ public class RepoView {
     }
 
     private void resetToCommit(CommitInfo commit) {
-        Alert confirm = new Alert(Alert.AlertType.CONFIRMATION,
+        Alert confirm = new ThemedAlert(Alert.AlertType.CONFIRMATION,
                 "La rama actual pasará a apuntar a " + commit.shortId()
                         + " (reset --hard). Los commits posteriores se podrán"
                         + " recuperar con Deshacer. ¿Continuar?");
@@ -725,18 +727,18 @@ public class RepoView {
             String head = result[0];
             String preview = result[1];
             if (preview == null) {
-                new Alert(Alert.AlertType.WARNING,
+                new ThemedAlert(Alert.AlertType.WARNING,
                         "Solo se puede fusionar HEAD (con exactamente un padre)"
                                 + " estando en una rama.").showAndWait();
                 return;
             }
             if (!commit.id().equals(head)) {
-                new Alert(Alert.AlertType.WARNING,
+                new ThemedAlert(Alert.AlertType.WARNING,
                         "Solo se puede fusionar el último commit (HEAD) con su padre.")
                         .showAndWait();
                 return;
             }
-            Dialog<ButtonType> dialog = new Dialog<>();
+            Dialog<ButtonType> dialog = new ThemedDialog<>();
             dialog.setTitle("Squash");
             dialog.setHeaderText("Fusionar " + commit.shortId()
                     + " con su padre. Mensaje del commit resultante:");
@@ -771,7 +773,7 @@ public class RepoView {
      * desde él hasta HEAD.
      */
     private void rewordCommit(CommitInfo commit) {
-        Dialog<ButtonType> dialog = new Dialog<>();
+        Dialog<ButtonType> dialog = new ThemedDialog<>();
         dialog.setTitle("Editar mensaje");
         dialog.setHeaderText("Nuevo mensaje para " + commit.shortId()
                 + " (reescribe la historia desde este commit hasta HEAD):");
@@ -805,13 +807,13 @@ public class RepoView {
         runTask("Cargando rango de rebase", p -> git.rebaseRange(commit.id()),
                 range -> {
                     if (range.isEmpty()) {
-                        new Alert(Alert.AlertType.WARNING,
+                        new ThemedAlert(Alert.AlertType.WARNING,
                                 "No hay commits posteriores a " + commit.shortId()
                                         + " en la rama actual.").showAndWait();
                         return;
                     }
                     if (range.stream().anyMatch(c -> c.parents().size() > 1)) {
-                        new Alert(Alert.AlertType.WARNING,
+                        new ThemedAlert(Alert.AlertType.WARNING,
                                 "El rango contiene commits de merge: el rebase"
                                         + " interactivo solo admite historia lineal.")
                                 .showAndWait();
@@ -850,7 +852,7 @@ public class RepoView {
     }
 
     private void showInteractiveRebaseDialog(CommitInfo base, List<CommitInfo> range) {
-        Dialog<ButtonType> dialog = new Dialog<>();
+        Dialog<ButtonType> dialog = new ThemedDialog<>();
         dialog.setTitle("Rebase interactivo");
         dialog.setHeaderText("Reescribir " + range.size() + " commit(s) sobre "
                 + base.shortId() + " (el más nuevo arriba)");
@@ -882,7 +884,7 @@ public class RepoView {
             String action = row.action.getValue();
             if (!"drop".equals(action)) {
                 if (!keptSeen && "squash".equals(action)) {
-                    new Alert(Alert.AlertType.WARNING,
+                    new ThemedAlert(Alert.AlertType.WARNING,
                             "El commit más antiguo no puede ser «squash»: no hay"
                                     + " un commit anterior sobre el que fusionar.")
                             .showAndWait();
@@ -891,7 +893,7 @@ public class RepoView {
                 keptSeen = true;
             }
             if ("reword".equals(action) && row.message.getText().isBlank()) {
-                new Alert(Alert.AlertType.WARNING,
+                new ThemedAlert(Alert.AlertType.WARNING,
                         "El mensaje de «reword» no puede estar vacío ("
                                 + row.commit.shortId() + ").").showAndWait();
                 return;
@@ -900,12 +902,12 @@ public class RepoView {
                     row.message.getText().trim()));
         }
         if (!keptSeen) {
-            new Alert(Alert.AlertType.WARNING,
+            new ThemedAlert(Alert.AlertType.WARNING,
                     "No puedes eliminar (drop) todos los commits del rango.")
                     .showAndWait();
             return;
         }
-        Alert confirm = new Alert(Alert.AlertType.CONFIRMATION,
+        Alert confirm = new ThemedAlert(Alert.AlertType.CONFIRMATION,
                 "Esto reescribirá " + range.size() + " commit(s) de la rama actual."
                         + " ¿Continuar? (Se puede deshacer con Ctrl+Z)");
         confirm.setHeaderText("Rebase interactivo");
@@ -920,7 +922,7 @@ public class RepoView {
             return git.interactiveRebase(base.id(), plan);
         }, oldSha -> {
             if (oldSha == null) {
-                new Alert(Alert.AlertType.INFORMATION,
+                new ThemedAlert(Alert.AlertType.INFORMATION,
                         "El rebase se ha detenido por conflictos. Resuélvelos en"
                                 + " la pestaña Cambios y continúa, o aborta el rebase.")
                         .showAndWait();
@@ -945,7 +947,7 @@ public class RepoView {
 
     /** Crea una etiqueta en un commit (menú contextual del grafo). */
     private void createTagAt(CommitInfo commit) {
-        Dialog<ButtonType> dialog = new Dialog<>();
+        Dialog<ButtonType> dialog = new ThemedDialog<>();
         dialog.setTitle("Nueva etiqueta");
         dialog.setHeaderText("Crear una etiqueta en el commit " + commit.shortId());
         dialog.getDialogPane().getButtonTypes().addAll(ButtonType.OK, ButtonType.CANCEL);
@@ -965,7 +967,7 @@ public class RepoView {
         }
         String tagName = name.getText().trim();
         if (!git.isValidTagName(tagName)) {
-            new Alert(Alert.AlertType.ERROR,
+            new ThemedAlert(Alert.AlertType.ERROR,
                     "Nombre de etiqueta no válido: " + tagName).showAndWait();
             return;
         }
@@ -984,7 +986,7 @@ public class RepoView {
 
     /** Elimina una etiqueta (menú contextual del panel de ramas). */
     public void deleteTag(String name) {
-        Alert confirm = new Alert(Alert.AlertType.CONFIRMATION,
+        Alert confirm = new ThemedAlert(Alert.AlertType.CONFIRMATION,
                 "¿Eliminar la etiqueta «" + name + "»? Se puede recuperar con Deshacer.");
         confirm.setHeaderText("Eliminar etiqueta");
         confirm.showAndWait().filter(bt -> bt == ButtonType.OK).ifPresent(bt ->
@@ -1020,7 +1022,7 @@ public class RepoView {
 
     /** Rebasa la rama actual sobre otra (menú contextual del panel). */
     public void rebaseOnto(String branchName) {
-        Alert confirm = new Alert(Alert.AlertType.CONFIRMATION,
+        Alert confirm = new ThemedAlert(Alert.AlertType.CONFIRMATION,
                 "La rama actual se rebasará sobre «" + branchName
                         + "» (reescribe los commits locales). ¿Continuar?");
         confirm.setHeaderText("Rebase");
@@ -1037,7 +1039,7 @@ public class RepoView {
                     String status = result[1];
                     if (status.startsWith("STOPPED") || status.startsWith("CONFLICTS")
                             || status.startsWith("FAILED")) {
-                        new Alert(Alert.AlertType.WARNING,
+                        new ThemedAlert(Alert.AlertType.WARNING,
                                 "El rebase se detuvo por conflictos (" + status + ")."
                                         + " Resuélvelos en la pestaña Cambios y pulsa"
                                         + " Continuar, o Abortar para volver atrás.").showAndWait();
@@ -1085,7 +1087,7 @@ public class RepoView {
         }, result -> {
             String status = result[1];
             if (status.startsWith("CONFLICTING") || status.startsWith("FAILED")) {
-                new Alert(Alert.AlertType.WARNING,
+                new ThemedAlert(Alert.AlertType.WARNING,
                         "El merge produjo conflictos (" + status + "). Resuélvelos"
                                 + " en la pestaña Cambios, o aborta con «git merge --abort»"
                                 + " desde la terminal.").showAndWait();
@@ -1113,13 +1115,13 @@ public class RepoView {
     }
 
     public void createBranch() {
-        TextInputDialog dialog = new TextInputDialog();
+        TextInputDialog dialog = new ThemedTextInputDialog();
         dialog.setTitle("Nueva rama");
         dialog.setHeaderText("Crear una rama nueva desde HEAD y cambiar a ella");
         dialog.setContentText("Nombre:");
         dialog.showAndWait().map(String::trim).filter(n -> !n.isEmpty()).ifPresent(name -> {
             if (!git.isValidBranchName(name)) {
-                new Alert(Alert.AlertType.ERROR,
+                new ThemedAlert(Alert.AlertType.ERROR,
                         "Nombre de rama no válido: " + name).showAndWait();
                 return;
             }
@@ -1136,10 +1138,29 @@ public class RepoView {
     }
 
     public void stash() {
-        runTask("Creando stash", p -> git.stashCreate(null), created -> {
+        Dialog<ButtonType> dialog = new ThemedDialog<>();
+        dialog.setTitle("Crear stash");
+        dialog.setHeaderText("Guarda los cambios actuales en el stash");
+        dialog.getDialogPane().getButtonTypes().addAll(ButtonType.OK, ButtonType.CANCEL);
+        TextField message = new TextField();
+        message.setPromptText("Mensaje del stash (opcional)");
+        CheckBox untracked = new CheckBox("Incluir archivos sin seguimiento");
+        javafx.scene.layout.VBox box = new javafx.scene.layout.VBox(8, message, untracked);
+        box.setPadding(new Insets(8));
+        dialog.getDialogPane().setContent(box);
+        message.requestFocus();
+        var result = dialog.showAndWait();
+        if (result.isEmpty() || result.get() != ButtonType.OK) {
+            return;
+        }
+        String text = message.getText().trim();
+        boolean withUntracked = untracked.isSelected();
+        runTask("Creando stash", p -> git.stashCreate(text, withUntracked), created -> {
             if (!created) {
-                new Alert(Alert.AlertType.INFORMATION,
+                new ThemedAlert(Alert.AlertType.INFORMATION,
                         "No hay cambios para guardar en el stash.").showAndWait();
+            } else {
+                toast("✓ Stash creado" + (text.isEmpty() ? "" : ": " + text));
             }
             refreshAll();
         });
@@ -1154,7 +1175,7 @@ public class RepoView {
             return true;
         }, popped -> {
             if (!popped) {
-                new Alert(Alert.AlertType.INFORMATION,
+                new ThemedAlert(Alert.AlertType.INFORMATION,
                         "No hay entradas en el stash.").showAndWait();
             }
             refreshAll();
@@ -1220,13 +1241,13 @@ public class RepoView {
     }
 
     private void createBranchAtSha(String sha, String shortSha) {
-        TextInputDialog dialog = new TextInputDialog();
+        TextInputDialog dialog = new ThemedTextInputDialog();
         dialog.setTitle("Nueva rama");
         dialog.setHeaderText("Crear una rama en el commit " + shortSha);
         dialog.setContentText("Nombre:");
         dialog.showAndWait().map(String::trim).filter(n -> !n.isEmpty()).ifPresent(name -> {
             if (!git.isValidBranchName(name)) {
-                new Alert(Alert.AlertType.ERROR,
+                new ThemedAlert(Alert.AlertType.ERROR,
                         "Nombre de rama no válido: " + name).showAndWait();
                 return;
             }
@@ -1248,7 +1269,7 @@ public class RepoView {
     }
 
     private void checkoutSha(String sha, String shortSha) {
-        Alert confirm = new Alert(Alert.AlertType.CONFIRMATION,
+        Alert confirm = new ThemedAlert(Alert.AlertType.CONFIRMATION,
                 "Esto dejará HEAD separado en el commit " + shortSha + ". ¿Continuar?");
         confirm.setHeaderText("Checkout de commit");
         confirm.showAndWait().filter(bt -> bt == ButtonType.OK).ifPresent(bt ->
