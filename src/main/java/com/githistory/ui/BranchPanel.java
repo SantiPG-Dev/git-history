@@ -176,13 +176,13 @@ public class BranchPanel {
     }
 
     private void createBranch() {
-        TextInputDialog dialog = new TextInputDialog();
+        TextInputDialog dialog = new ThemedTextInputDialog();
         dialog.setTitle("Nueva rama");
         dialog.setHeaderText("Crear una rama nueva desde HEAD y cambiar a ella");
         dialog.setContentText("Nombre:");
         dialog.showAndWait().map(String::trim).filter(n -> !n.isEmpty()).ifPresent(name -> {
             if (!repo.git().isValidBranchName(name)) {
-                new Alert(Alert.AlertType.ERROR,
+                new ThemedAlert(Alert.AlertType.ERROR,
                         "Nombre de rama no válido: " + name).showAndWait();
                 return;
             }
@@ -194,7 +194,7 @@ public class BranchPanel {
     }
 
     private void renameBranch(GitService.BranchInfo branch) {
-        TextInputDialog dialog = new TextInputDialog(branch.shortName());
+        TextInputDialog dialog = new ThemedTextInputDialog(branch.shortName());
         dialog.setTitle("Renombrar rama");
         dialog.setHeaderText("Renombrar «" + branch.shortName() + "»");
         dialog.setContentText("Nuevo nombre:");
@@ -202,7 +202,7 @@ public class BranchPanel {
                 .filter(n -> !n.isEmpty() && !n.equals(branch.shortName()))
                 .ifPresent(name -> {
                     if (!repo.git().isValidBranchName(name)) {
-                        new Alert(Alert.AlertType.ERROR,
+                        new ThemedAlert(Alert.AlertType.ERROR,
                                 "Nombre de rama no válido: " + name).showAndWait();
                         return;
                     }
@@ -214,7 +214,7 @@ public class BranchPanel {
     }
 
     private void deleteBranch(GitService.BranchInfo branch) {
-        Alert confirm = new Alert(Alert.AlertType.CONFIRMATION,
+        Alert confirm = new ThemedAlert(Alert.AlertType.CONFIRMATION,
                 "¿Eliminar la rama «" + branch.shortName() + "»? Esta acción no se puede deshacer.");
         confirm.setHeaderText("Eliminar rama");
         confirm.showAndWait().filter(bt -> bt == ButtonType.OK).ifPresent(bt ->
@@ -236,7 +236,7 @@ public class BranchPanel {
     }
 
     private void stashDrop(GitService.StashEntry entry) {
-        Alert confirm = new Alert(Alert.AlertType.CONFIRMATION,
+        Alert confirm = new ThemedAlert(Alert.AlertType.CONFIRMATION,
                 "¿Eliminar stash@{" + entry.index() + "} («" + entry.message() + "»)?");
         confirm.setHeaderText("Eliminar stash");
         confirm.showAndWait().filter(bt -> bt == ButtonType.OK).ifPresent(bt ->
@@ -310,7 +310,7 @@ public class BranchPanel {
     }
 
     private void removeWorktree(GitService.WorktreeInfo wt, boolean force) {
-        Alert confirm = new Alert(Alert.AlertType.CONFIRMATION,
+        Alert confirm = new ThemedAlert(Alert.AlertType.CONFIRMATION,
                 "¿Eliminar el worktree «" + wt.path() + "»"
                         + (force ? " aunque tenga cambios?" : "?"));
         confirm.setHeaderText("Eliminar worktree");
@@ -361,7 +361,7 @@ public class BranchPanel {
         String name = branch.getText().trim();
         boolean create = createBranch.isSelected();
         if (!repo.git().isValidBranchName(name)) {
-            new Alert(Alert.AlertType.ERROR,
+            new ThemedAlert(Alert.AlertType.ERROR,
                     "Nombre de rama no válido: " + name).showAndWait();
             return;
         }

@@ -30,6 +30,7 @@ public class RemotesDialog extends Dialog<Void> {
     }
 
     public RemotesDialog(Window owner, RemoteActions actions) {
+        Themes.style(getDialogPane());
         setTitle("Remotos");
         setHeaderText(null);
         initOwner(owner);
@@ -74,7 +75,7 @@ public class RemotesDialog extends Dialog<Void> {
             if (selected == null) {
                 return;
             }
-            Alert confirm = new Alert(Alert.AlertType.CONFIRMATION,
+            Alert confirm = new ThemedAlert(Alert.AlertType.CONFIRMATION,
                     "Se eliminará el remoto «" + selected.name()
                             + "» y sus ramas de seguimiento. ¿Continuar?");
             confirm.setHeaderText("Eliminar remoto");
@@ -99,7 +100,7 @@ public class RemotesDialog extends Dialog<Void> {
     }
 
     private static void showError(String header, Exception ex) {
-        Alert alert = new Alert(Alert.AlertType.ERROR, ex.getMessage());
+        Alert alert = new ThemedAlert(Alert.AlertType.ERROR, ex.getMessage());
         alert.setHeaderText(header);
         alert.showAndWait();
     }

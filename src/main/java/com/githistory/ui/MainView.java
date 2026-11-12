@@ -409,7 +409,7 @@ public class MainView {
 
         Menu ayuda = new Menu("Ayuda");
         MenuItem acerca = new MenuItem("Acerca de Git History");
-        acerca.setOnAction(e -> new Alert(Alert.AlertType.INFORMATION,
+        acerca.setOnAction(e -> new ThemedAlert(Alert.AlertType.INFORMATION,
                 "Git History 0.1.0\n\nUn cliente Git visual, libre y sin IA.\nConstruido con JavaFX y JGit.")
                 .showAndWait());
         ayuda.getItems().add(acerca);

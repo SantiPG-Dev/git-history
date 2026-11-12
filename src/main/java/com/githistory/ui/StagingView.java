@@ -223,7 +223,7 @@ public class StagingView {
     }
 
     private void abortOperation() {
-        Alert confirm = new Alert(Alert.AlertType.CONFIRMATION,
+        Alert confirm = new ThemedAlert(Alert.AlertType.CONFIRMATION,
                 "Se descartará la operación en curso y se volverá al estado anterior. ¿Continuar?");
         confirm.setHeaderText("Abortar operación");
         confirm.showAndWait().filter(bt -> bt == ButtonType.OK).ifPresent(bt ->
@@ -237,7 +237,7 @@ public class StagingView {
         boolean conflicts = unstagedList.getItems().stream()
                 .anyMatch(en -> en.state().equals("Conflicto"));
         if (conflicts) {
-            new Alert(Alert.AlertType.WARNING,
+            new ThemedAlert(Alert.AlertType.WARNING,
                     "Aún hay conflictos sin resolver.").showAndWait();
             return;
         }
@@ -250,7 +250,7 @@ public class StagingView {
     private void showConflictEditor(GitService.StatusEntry entry) {
         repo.runTask("Cargando conflicto", p -> repo.git().workingFileContent(entry.path()),
                 content -> {
-                    Dialog<ButtonType> dialog = new Dialog<>();
+                    Dialog<ButtonType> dialog = new ThemedDialog<>();
                     dialog.setTitle("Resolver conflicto: " + entry.path());
                     dialog.setHeaderText("Edita el contenido o usa un lado; no deben quedar"
                             + " marcadores <<<<<<<, ======= ni >>>>>>>");
@@ -276,7 +276,7 @@ public class StagingView {
                     String resolvedText = editor.getText();
                     if (resolvedText.lines().anyMatch(l -> l.startsWith("<<<<<<<")
                             || l.startsWith(">>>>>>>"))) {
-                        new Alert(Alert.AlertType.WARNING,
+                        new ThemedAlert(Alert.AlertType.WARNING,
                                 "Quedan marcadores de conflicto sin resolver.").showAndWait();
                         return;
                     }
@@ -403,11 +403,11 @@ public class StagingView {
     private void doCommit(boolean amend) {
         String message = messageArea.getText().trim();
         if (message.isEmpty() && !amend) {
-            new Alert(Alert.AlertType.WARNING, "Escribe un mensaje para el commit.").showAndWait();
+            new ThemedAlert(Alert.AlertType.WARNING, "Escribe un mensaje para el commit.").showAndWait();
             return;
         }
         if (stagedList.getItems().isEmpty() && !amend) {
-            new Alert(Alert.AlertType.WARNING,
+            new ThemedAlert(Alert.AlertType.WARNING,
                     "No hay cambios preparados. Prepara algún archivo primero.").showAndWait();
             return;
         }
@@ -440,7 +440,7 @@ public class StagingView {
     }
 
     private void discardAll() {
-        Alert confirm = new Alert(Alert.AlertType.CONFIRMATION,
+        Alert confirm = new ThemedAlert(Alert.AlertType.CONFIRMATION,
                 "Se descartarán TODOS los cambios sin commitear, incluidos los"
                         + " archivos nuevos. Esta acción no se puede deshacer. ¿Continuar?");
         confirm.setHeaderText("Descartar todos los cambios");
@@ -453,7 +453,7 @@ public class StagingView {
 
     private void discardFile(GitService.StatusEntry entry) {
         boolean untracked = entry.state().equals("Nuevo");
-        Alert confirm = new Alert(Alert.AlertType.CONFIRMATION,
+        Alert confirm = new ThemedAlert(Alert.AlertType.CONFIRMATION,
                 untracked
                         ? "«" + entry.path() + "» no tiene seguimiento: se eliminará del disco."
                         : "Se descartarán los cambios de «" + entry.path() + "».");
@@ -478,7 +478,7 @@ public class StagingView {
     }
 
     private boolean promptIdentity() {
-        Dialog<ButtonType> dialog = new Dialog<>();
+        Dialog<ButtonType> dialog = new ThemedDialog<>();
         dialog.setTitle("Identidad de Git");
         dialog.setHeaderText("Configura tu nombre y email para este repositorio");
         dialog.getDialogPane().getButtonTypes().addAll(ButtonType.OK, ButtonType.CANCEL);
@@ -502,7 +502,7 @@ public class StagingView {
             repo.git().setIdentity(name.getText().trim(), email.getText().trim());
             return true;
         } catch (Exception e) {
-            new Alert(Alert.AlertType.ERROR,
+            new ThemedAlert(Alert.AlertType.ERROR,
                     "No se pudo guardar la identidad: " + e.getMessage()).showAndWait();
             return false;
         }

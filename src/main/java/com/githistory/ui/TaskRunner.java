@@ -91,7 +91,7 @@ public final class TaskRunner {
         if (message == null || message.isBlank()) {
             message = e.getClass().getSimpleName();
         }
-        Alert alert = new Alert(Alert.AlertType.ERROR, message);
+        Alert alert = new ThemedAlert(Alert.AlertType.ERROR, message);
         alert.setTitle("Error");
         alert.setHeaderText(description);
         alert.showAndWait();

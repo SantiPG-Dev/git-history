@@ -27,6 +27,7 @@ import java.io.IOException;
 public class PreferencesDialog extends Dialog<Void> {
 
     public PreferencesDialog(Window owner, RepoView activeRepo) {
+        Themes.style(getDialogPane());
         setTitle("Preferencias");
         setHeaderText(null);
         initOwner(owner);
@@ -182,7 +183,7 @@ public class PreferencesDialog extends Dialog<Void> {
                         }
                     }
                 } catch (IOException | ConfigInvalidException ex) {
-                    new Alert(Alert.AlertType.ERROR,
+                    new ThemedAlert(Alert.AlertType.ERROR,
                             "No se pudieron guardar las preferencias: " + ex.getMessage())
                             .showAndWait();
                 }
