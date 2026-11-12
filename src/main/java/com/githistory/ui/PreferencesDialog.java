@@ -86,7 +86,22 @@ public class PreferencesDialog extends Dialog<Void> {
         appearanceGrid.setHgap(8);
         appearanceGrid.setVgap(8);
         appearanceGrid.addRow(0, new Label("Tema:"), themeBox);
-        box.getChildren().addAll(appearanceTitle, appearanceGrid);
+
+        CheckBox autoFetchBox = new CheckBox("Fetch automático de los repos abiertos");
+        TextField autoFetchMinutes = new TextField(
+                String.valueOf(Math.max(1, AppConfig.load().autoFetchMinutes())));
+        autoFetchMinutes.setPrefColumnCount(4);
+        int autoFetch0 = AppConfig.load().autoFetchMinutes();
+        autoFetchBox.setSelected(autoFetch0 > 0);
+        autoFetchMinutes.setDisable(autoFetch0 <= 0);
+        autoFetchBox.setOnAction(e ->
+                autoFetchMinutes.setDisable(!autoFetchBox.isSelected()));
+        GridPane fetchGrid = new GridPane();
+        fetchGrid.setHgap(8);
+        fetchGrid.setVgap(8);
+        fetchGrid.addRow(0, new Label("Cada (minutos):"), autoFetchMinutes);
+        box.getChildren().addAll(appearanceTitle, appearanceGrid,
+                autoFetchBox, fetchGrid);
 
         CheckBox repoOverride = null;
         TextField repoName = null;
@@ -148,6 +163,16 @@ public class PreferencesDialog extends Dialog<Void> {
                     AppConfig config = AppConfig.load();
                     config.setTheme(themeBox.getSelectionModel().getSelectedIndex() == 1
                             ? Themes.LIGHT : Themes.DARK);
+                    int minutes = 0;
+                    if (autoFetchBox.isSelected()) {
+                        try {
+                            minutes = Math.max(1,
+                                    Integer.parseInt(autoFetchMinutes.getText().trim()));
+                        } catch (NumberFormatException ex) {
+                            minutes = 5;
+                        }
+                    }
+                    config.setAutoFetchMinutes(minutes);
                     config.save();
                     if (activeRepo != null) {
                         if (override.isSelected()) {
