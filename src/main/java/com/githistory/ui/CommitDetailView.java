@@ -114,7 +114,18 @@ public class CommitDetailView {
                 setGraphic(new HBox(6, badge(file.changeType()), new Label(file.path())));
                 MenuItem blame = new MenuItem("Ver blame de este archivo");
                 blame.setOnAction(e -> repo.showBlame(file.path(), currentCommitId));
-                setContextMenu(new ContextMenu(blame));
+                MenuItem view = new MenuItem("Ver archivo en este commit");
+                view.setOnAction(e -> showFileAtCommit(file.path()));
+                MenuItem restore = new MenuItem("Restaurar archivo a esta versión");
+                restore.setOnAction(e -> restoreFile(file.path()));
+                MenuItem copyPath = new MenuItem("Copiar ruta");
+                copyPath.setOnAction(e -> {
+                    var content = new javafx.scene.input.ClipboardContent();
+                    content.putString(file.path());
+                    javafx.scene.input.Clipboard.getSystemClipboard().setContent(content);
+                });
+                setContextMenu(new ContextMenu(blame, view, restore,
+                        new javafx.scene.control.SeparatorMenuItem(), copyPath));
             }
         });
         fileList.getSelectionModel().selectedItemProperty().addListener((obs, o, file) -> {
@@ -261,6 +272,56 @@ public class CommitDetailView {
                 fileList.getSelectionModel().select(0);
             }
         }
+    }
+
+    /** Visor de solo lectura del archivo tal como estaba en el commit. */
+    private void showFileAtCommit(String path) {
+        String commitId = currentCommitId;
+        if (commitId == null) {
+            return;
+        }
+        repo.runTask("Cargando " + path, p -> repo.git().fileContent(commitId, path),
+                content -> {
+                    javafx.scene.control.Dialog<javafx.scene.control.ButtonType> dialog =
+                            new javafx.scene.control.Dialog<>();
+                    dialog.setTitle(path + " @ " + commitId.substring(0, 7));
+                    dialog.getDialogPane().getButtonTypes().add(
+                            javafx.scene.control.ButtonType.CLOSE);
+                    javafx.scene.control.TextArea area =
+                            new javafx.scene.control.TextArea(content == null
+                                    ? "(archivo binario o inexistente en este commit)"
+                                    : content);
+                    area.setEditable(false);
+                    area.getStyleClass().add("conflict-editor");
+                    area.setPrefSize(700, 480);
+                    dialog.getDialogPane().setContent(area);
+                    dialog.showAndWait();
+                });
+    }
+
+    /** Restaura el archivo del worktree a su versión en el commit mostrado. */
+    private void restoreFile(String path) {
+        String commitId = currentCommitId;
+        if (commitId == null) {
+            return;
+        }
+        javafx.scene.control.Alert confirm = new javafx.scene.control.Alert(
+                javafx.scene.control.Alert.AlertType.CONFIRMATION,
+                "«" + path + "» pasará a tener el contenido del commit "
+                        + commitId.substring(0, 7)
+                        + ". El cambio aparecerá en Cambios y se puede descartar."
+                        + " ¿Continuar?");
+        confirm.setHeaderText("Restaurar archivo");
+        confirm.showAndWait()
+                .filter(bt -> bt == javafx.scene.control.ButtonType.OK)
+                .ifPresent(bt -> repo.runTask("Restaurando " + path, p -> {
+                    repo.git().checkoutFileFromCommit(commitId, path);
+                    return null;
+                }, v -> {
+                    repo.toast("✓ «" + path + "» restaurado a "
+                            + commitId.substring(0, 7));
+                    repo.refreshAll();
+                }));
     }
 
     private void ensureAllFiles(Runnable then) {
