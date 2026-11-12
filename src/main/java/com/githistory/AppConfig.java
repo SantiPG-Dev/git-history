@@ -89,6 +89,19 @@ public final class AppConfig {
         props.setProperty("fontSize", String.valueOf(size));
     }
 
+    /** Minutos entre fetch automáticos de los repos abiertos (0 = desactivado). */
+    public int autoFetchMinutes() {
+        try {
+            return Integer.parseInt(props.getProperty("autoFetchMinutes", "0"));
+        } catch (NumberFormatException e) {
+            return 0;
+        }
+    }
+
+    public void setAutoFetchMinutes(int minutes) {
+        props.setProperty("autoFetchMinutes", String.valueOf(minutes));
+    }
+
     public void save() throws IOException {
         Files.createDirectories(file.getParent());
         try (OutputStream out = Files.newOutputStream(file)) {

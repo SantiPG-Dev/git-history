@@ -103,6 +103,35 @@ public class MainView {
         statusBar.setVisible(false);
         root.setBottom(statusBar);
         this.globalStatusBar = statusBar;
+        restartAutoFetch();
+    }
+
+    private java.util.concurrent.ScheduledFuture<?> autoFetchTask;
+    private final java.util.concurrent.ScheduledExecutorService autoFetchExecutor =
+            java.util.concurrent.Executors.newSingleThreadScheduledExecutor(r -> {
+                Thread thread = new Thread(r, "auto-fetch");
+                thread.setDaemon(true);
+                return thread;
+            });
+
+    /** (Re)programa el fetch automático según AppConfig (0 = desactivado). */
+    public void restartAutoFetch() {
+        if (autoFetchTask != null) {
+            autoFetchTask.cancel(false);
+            autoFetchTask = null;
+        }
+        int minutes = AppConfig.load().autoFetchMinutes();
+        if (minutes <= 0) {
+            return;
+        }
+        autoFetchTask = autoFetchExecutor.scheduleWithFixedDelay(
+                () -> Platform.runLater(() -> {
+                    for (Tab tab : new ArrayList<>(repoTabs.getTabs())) {
+                        if (tab.getUserData() instanceof RepoView view) {
+                            view.fetch();
+                        }
+                    }
+                }), minutes, minutes, java.util.concurrent.TimeUnit.MINUTES);
     }
 
     public BorderPane getRoot() {
@@ -259,7 +288,10 @@ public class MainView {
         cerrar.setOnAction(e -> closeActiveTab());
         MenuItem prefs = new MenuItem("Preferencias…");
         prefs.setAccelerator(KeyCombination.keyCombination("Ctrl+,"));
-        prefs.setOnAction(e -> new PreferencesDialog(stage, activeRepo()).showAndWait());
+        prefs.setOnAction(e -> {
+            new PreferencesDialog(stage, activeRepo()).showAndWait();
+            restartAutoFetch();
+        });
         MenuItem salir = new MenuItem("Salir");
         salir.setAccelerator(KeyCombination.keyCombination("Ctrl+Q"));
         salir.setOnAction(e -> Platform.exit());
