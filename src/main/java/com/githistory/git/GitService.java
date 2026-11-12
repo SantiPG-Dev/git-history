@@ -1642,13 +1642,21 @@ public class GitService implements AutoCloseable {
     }
 
     public List<DiffFile> commitDetail(String commitId) throws IOException {
+        return commitDetail(commitId, false);
+    }
+
+    /**
+     * Igual que {@link #commitDetail(String)}, pero con {@code ignoreWs} omite
+     * los cambios que solo alteran espacios en blanco (como {@code git diff -w}).
+     */
+    public List<DiffFile> commitDetail(String commitId, boolean ignoreWs) throws IOException {
         try (RevWalk walk = new RevWalk(repo)) {
             RevCommit commit = walk.parseCommit(ObjectId.fromString(commitId));
             RevTree newTree = commit.getTree();
             RevTree oldTree = commit.getParentCount() == 0
                     ? null
                     : walk.parseCommit(commit.getParent(0).getId()).getTree();
-            return diffTrees(oldTree, newTree);
+            return diffTrees(oldTree, newTree, ignoreWs);
         }
     }
 
@@ -1673,14 +1681,24 @@ public class GitService implements AutoCloseable {
 
     /** Diff entre dos commits cualesquiera (de oldSha a newSha). */
     public List<DiffFile> diffBetween(String oldSha, String newSha) throws IOException {
+        return diffBetween(oldSha, newSha, false);
+    }
+
+    /**
+     * Igual que {@link #diffBetween(String, String)}, pero con {@code ignoreWs}
+     * omite los cambios que solo alteran espacios en blanco.
+     */
+    public List<DiffFile> diffBetween(String oldSha, String newSha, boolean ignoreWs)
+            throws IOException {
         try (RevWalk walk = new RevWalk(repo)) {
             RevTree oldTree = walk.parseCommit(ObjectId.fromString(oldSha)).getTree();
             RevTree newTree = walk.parseCommit(ObjectId.fromString(newSha)).getTree();
-            return diffTrees(oldTree, newTree);
+            return diffTrees(oldTree, newTree, ignoreWs);
         }
     }
 
-    private List<DiffFile> diffTrees(RevTree oldTree, RevTree newTree) throws IOException {
+    private List<DiffFile> diffTrees(RevTree oldTree, RevTree newTree, boolean ignoreWs)
+            throws IOException {
         try (ObjectReader reader = repo.newObjectReader()) {
             AbstractTreeIterator oldIter = oldTree == null
                     ? new EmptyTreeIterator()
@@ -1698,6 +1716,14 @@ public class GitService implements AutoCloseable {
                 try (DiffFormatter df = new DiffFormatter(out)) {
                     df.setRepository(repo);
                     df.setDetectRenames(true);
+                    if (ignoreWs) {
+                        df.setDiffComparator(RawTextComparator.WS_IGNORE_ALL);
+                        // Un cambio de solo whitespace produce un FileHeader
+                        // sin hunks: el archivo se omite del resultado.
+                        if (df.toFileHeader(entry).toEditList().isEmpty()) {
+                            continue;
+                        }
+                    }
                     df.format(entry);
                 }
                 String path = entry.getChangeType() == DiffEntry.ChangeType.DELETE

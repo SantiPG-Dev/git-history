@@ -1,5 +1,6 @@
 package com.githistory.ui;
 
+import com.githistory.AppConfig;
 import com.githistory.git.CommitInfo;
 import com.githistory.git.GitService;
 import javafx.geometry.Insets;
@@ -61,6 +62,7 @@ public class CommitDetailView {
     private final ToggleButton pathToggle = new ToggleButton("Path");
     private final ToggleButton treeToggle = new ToggleButton("Tree");
     private final CheckBox viewAllBox = new CheckBox("Todos los archivos");
+    private final CheckBox ignoreWsBox = new CheckBox("Ignorar espacios");
     private final ListView<GitService.DiffFile> fileList = new ListView<>();
     private final TreeView<FileNode> treeView = new TreeView<>();
     private final DiffView diffView = new DiffView();
@@ -70,6 +72,7 @@ public class CommitDetailView {
     private String currentCommitId;
     private List<GitService.DiffFile> currentFiles = List.of();
     private List<String> allFiles;
+    private TaskRunner.Work<List<GitService.DiffFile>> currentWork;
 
     public CommitDetailView(RepoView repo) {
         this.repo = repo;
@@ -99,7 +102,20 @@ public class CommitDetailView {
                 applyViewMode();
             }
         });
-        HBox viewBar = new HBox(8, pathToggle, treeToggle, viewAllBox);
+        ignoreWsBox.setSelected(AppConfig.load().diffIgnoreWs());
+        ignoreWsBox.setOnAction(e -> {
+            AppConfig config = AppConfig.load();
+            config.setDiffIgnoreWs(ignoreWsBox.isSelected());
+            try {
+                config.save();
+            } catch (Exception ignored) {
+                // Preferencia no persistente: solo afecta a esta sesión.
+            }
+            if (currentWork != null) {
+                loadFiles(currentWork);
+            }
+        });
+        HBox viewBar = new HBox(8, pathToggle, treeToggle, viewAllBox, ignoreWsBox);
         viewBar.setAlignment(Pos.CENTER_LEFT);
 
         fileList.setCellFactory(lv -> new ListCell<>() {
@@ -210,7 +226,8 @@ public class CommitDetailView {
                         .map(p -> p.substring(0, 7))
                         .collect(Collectors.joining(", ")));
         allFiles = null;
-        loadFiles(p -> repo.git().commitDetail(info.id()));
+        currentWork = p -> repo.git().commitDetail(info.id(), ignoreWsBox.isSelected());
+        loadFiles(currentWork);
     }
 
     /** Muestra el diff combinado entre dos commits (Ctrl+clic en el grafo). */
@@ -223,7 +240,9 @@ public class CommitDetailView {
                 + "  →  " + newer.message()));
         parentsLabel.setText("");
         allFiles = null;
-        loadFiles(p -> repo.git().diffBetween(older.id(), newer.id()));
+        currentWork = p -> repo.git().diffBetween(older.id(), newer.id(),
+                ignoreWsBox.isSelected());
+        loadFiles(currentWork);
     }
 
     private void loadFiles(TaskRunner.Work<List<GitService.DiffFile>> work) {
