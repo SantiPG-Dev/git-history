@@ -127,7 +127,7 @@ public class CommitDetailView {
                     setContextMenu(null);
                     return;
                 }
-                setGraphic(new HBox(6, badge(file.changeType()), new Label(file.path())));
+                setGraphic(new HBox(6, badge(file.changeType()), fileName(file.path())));
                 MenuItem blame = new MenuItem("Ver blame de este archivo");
                 blame.setOnAction(e -> repo.showBlame(file.path(), currentCommitId));
                 MenuItem view = new MenuItem("Ver archivo en este commit");
@@ -161,7 +161,7 @@ public class CommitDetailView {
                     return;
                 }
                 if (node.file() != null) {
-                    setGraphic(new HBox(6, badge(node.file().changeType()), new Label(node.name())));
+                    setGraphic(new HBox(6, badge(node.file().changeType()), fileName(node.name())));
                     setText(null);
                 } else {
                     setGraphic(null);
@@ -402,8 +402,13 @@ public class CommitDetailView {
         }
     }
 
-    private static Label badge(String changeType) {
-        Label badge = new Label(switch (changeType) {
+    private static Label fileName(String path) {
+        Label label = new Label(path);
+        label.getStyleClass().add("file-name");
+        return label;
+    }
+
+    private static Label badge(String changeType) {        Label badge = new Label(switch (changeType) {
             case "Nuevo" -> "A";
             case "Eliminado" -> "D";
             case "Renombrado", "Copiado" -> "R";
