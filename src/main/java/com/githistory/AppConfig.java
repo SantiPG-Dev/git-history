@@ -102,6 +102,15 @@ public final class AppConfig {
         props.setProperty("autoFetchMinutes", String.valueOf(minutes));
     }
 
+    /** Si el diff del staging ignora los cambios de solo espacios en blanco. */
+    public boolean diffIgnoreWs() {
+        return Boolean.parseBoolean(props.getProperty("diffIgnoreWs", "false"));
+    }
+
+    public void setDiffIgnoreWs(boolean ignore) {
+        props.setProperty("diffIgnoreWs", String.valueOf(ignore));
+    }
+
     public void save() throws IOException {
         Files.createDirectories(file.getParent());
         try (OutputStream out = Files.newOutputStream(file)) {

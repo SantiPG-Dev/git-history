@@ -1,5 +1,6 @@
 package com.githistory.ui;
 
+import com.githistory.AppConfig;
 import com.githistory.git.GitService;
 import javafx.geometry.Insets;
 import javafx.geometry.Orientation;
@@ -36,8 +37,11 @@ public class StagingView {
     private final ListView<GitService.StatusEntry> stagedList = new ListView<>();
     private final TextArea messageArea = new TextArea();
     private final Label diffHeader = section("Cambios del archivo seleccionado");
+    private final CheckBox ignoreWsBox = new CheckBox("Ignorar espacios");
     private final DiffView diffView = new DiffView();
     private final HBox mergeBar;
+    private GitService.StatusEntry lastDiffEntry;
+    private boolean lastDiffStaged;
 
     public StagingView(RepoView repo) {
         this.repo = repo;
@@ -127,7 +131,24 @@ public class StagingView {
         });
 
         VBox.setVgrow(diffView, Priority.ALWAYS);
-        VBox diffBox = new VBox(4, diffHeader, diffView);
+        ignoreWsBox.setSelected(AppConfig.load().diffIgnoreWs());
+        ignoreWsBox.setOnAction(e -> {
+            AppConfig config = AppConfig.load();
+            config.setDiffIgnoreWs(ignoreWsBox.isSelected());
+            try {
+                config.save();
+            } catch (Exception ignored) {
+                // Preferencia no persistente: solo afecta a esta sesión.
+            }
+            if (lastDiffEntry != null) {
+                showDiff(lastDiffEntry, lastDiffStaged);
+            }
+        });
+        Region headerSpacer = new Region();
+        HBox.setHgrow(headerSpacer, Priority.ALWAYS);
+        HBox diffHeaderBox = new HBox(8, diffHeader, headerSpacer, ignoreWsBox);
+        diffHeaderBox.setAlignment(Pos.CENTER_LEFT);
+        VBox diffBox = new VBox(4, diffHeaderBox, diffView);
         diffBox.setPadding(new Insets(4, 8, 8, 8));
 
         SplitPane split = new SplitPane(lists, diffBox);
@@ -258,9 +279,12 @@ public class StagingView {
     }
 
     private void showDiff(GitService.StatusEntry entry, boolean staged) {
+        lastDiffEntry = entry;
+        lastDiffStaged = staged;
         diffHeader.setText("Cambios: " + entry.path());
         diffView.setDiff("Cargando…");
         boolean hunkable = entry.state().equals("Modificado");
+        boolean ignoreWs = ignoreWsBox.isSelected();
         repo.runTask("Cargando cambios", p -> {
             if (!staged && entry.state().equals("Nuevo")) {
                 try {
@@ -269,7 +293,7 @@ public class StagingView {
                     return new Object[]{"(no se pudo leer el archivo)", false};
                 }
             }
-            String diff = repo.git().workingTreeDiff(entry.path(), staged);
+            String diff = repo.git().workingTreeDiff(entry.path(), staged, ignoreWs);
             return new Object[]{diff.isBlank() ? "(sin diff disponible)" : diff, hunkable};
         }, result -> {
             String diff = (String) result[0];
