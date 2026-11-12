@@ -152,10 +152,16 @@ public class HistoryCell extends ListCell<GraphRow> {
         interactive.setOnAction(e -> actions.interactiveRebase(row.commit()));
         MenuItem copy = new MenuItem("Copiar hash");
         copy.setOnAction(e -> actions.copyHash(row.commit()));
+        MenuItem copyMessage = new MenuItem("Copiar mensaje");
+        copyMessage.setOnAction(e -> {
+            var content = new javafx.scene.input.ClipboardContent();
+            content.putString(row.commit().fullMessage());
+            javafx.scene.input.Clipboard.getSystemClipboard().setContent(content);
+        });
         setContextMenu(new ContextMenu(branch, tag, checkout,
                 new SeparatorMenuItem(), cherryPick, revert, squash, reword,
                 interactive, reset,
-                new SeparatorMenuItem(), copy));
+                new SeparatorMenuItem(), copy, copyMessage));
 
         setGraphic(box);
     }

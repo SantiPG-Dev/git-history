@@ -272,6 +272,39 @@ public class GitService implements AutoCloseable {
     }
 
     /**
+     * Contenido de un archivo en un commit. Devuelve null si no existe en él
+     * o si es binario (contiene NUL en los primeros 8 KB).
+     */
+    public String fileContent(String sha, String path) throws IOException {
+        try (RevWalk walk = new RevWalk(repo)) {
+            RevCommit commit = walk.parseCommit(ObjectId.fromString(sha));
+            try (TreeWalk tw = TreeWalk.forPath(repo, path, commit.getTree())) {
+                if (tw == null) {
+                    return null;
+                }
+                byte[] bytes = repo.open(tw.getObjectId(0)).getBytes();
+                for (int i = 0; i < Math.min(bytes.length, 8192); i++) {
+                    if (bytes[i] == 0) {
+                        return null;
+                    }
+                }
+                return new String(bytes, StandardCharsets.UTF_8);
+            }
+        }
+    }
+
+    /**
+     * Restaura un archivo del worktree a su versión en un commit
+     * (checkout &lt;sha&gt; -- &lt;path&gt;) y lo desprepara para que
+     * aparezca como cambio sin preparar, descartable con discardChanges.
+     */
+    public void checkoutFileFromCommit(String sha, String path)
+            throws GitAPIException {
+        git.checkout().setStartPoint(sha).addPath(path).call();
+        git.reset().addPath(path).call();
+    }
+
+    /**
      * Elimina un archivo sin seguimiento (descartar un "Nuevo" = borrarlo),
      * con guarda anti path traversal.
      */
