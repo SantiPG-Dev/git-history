@@ -8,6 +8,9 @@
     -fx-accent: #89b4fa;
     -fx-focus-color: #89b4fa55;
     -fx-faint-focus-color: #89b4fa22;
+    /* Con el acento claro, modena calcularía el texto de selección oscuro;
+       en nuestro tema oscuro las filas seleccionadas llevan texto claro. */
+    -fx-selection-bar-text: #cdd6f4;
     -fx-font-size: 12.5px;
     -fx-font-family: "Inter", "Cantarell", "Noto Sans", "Segoe UI", sans-serif;
 }
@@ -234,6 +237,10 @@
 }
 
 /* ── Panel de ramas ─────────────────────────────────────── */
+
+.file-name {
+    -fx-text-fill: #cdd6f4;
+}
 
 .branch-header {
     -fx-font-weight: bold;

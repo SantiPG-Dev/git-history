@@ -38,6 +38,9 @@ public class StagingView {
     private final TextArea messageArea = new TextArea();
     private final Label diffHeader = section("Cambios del archivo seleccionado");
     private final CheckBox ignoreWsBox = new CheckBox("Ignorar espacios");
+    private final CheckBox showIgnoredBox = new CheckBox("Ignorados");
+    private final Label ignoredHeader = section("Archivos ignorados");
+    private final ListView<String> ignoredList = new ListView<>();
     private final DiffView diffView = new DiffView();
     private final HBox mergeBar;
     private GitService.StatusEntry lastDiffEntry;
@@ -50,6 +53,21 @@ public class StagingView {
         lists.setPadding(new Insets(4, 8, 8, 8));
 
         Label unstagedHeader = section("Cambios sin preparar");
+        Region unstagedSpacer = new Region();
+        HBox.setHgrow(unstagedSpacer, Priority.ALWAYS);
+        showIgnoredBox.setSelected(AppConfig.load().showIgnored());
+        showIgnoredBox.setOnAction(e -> {
+            AppConfig config = AppConfig.load();
+            config.setShowIgnored(showIgnoredBox.isSelected());
+            try {
+                config.save();
+            } catch (Exception ignored) {
+                // Preferencia no persistente: solo afecta a esta sesión.
+            }
+            updateIgnoredVisibility();
+        });
+        HBox unstagedHeaderBox = new HBox(8, unstagedHeader, unstagedSpacer, showIgnoredBox);
+        unstagedHeaderBox.setAlignment(Pos.CENTER_LEFT);
         unstagedList.setCellFactory(lv -> new StatusCell(true));
         VBox.setVgrow(unstagedList, Priority.ALWAYS);
         unstagedList.setOnMouseClicked(e -> {
@@ -113,19 +131,46 @@ public class StagingView {
         discardAll.setOnAction(e -> discardAll());
 
         lists.getChildren().addAll(
-                unstagedHeader, unstagedList, new HBox(6, stageOne, stageAll),
+                unstagedHeaderBox, unstagedList, new HBox(6, stageOne, stageAll),
                 stagedHeader, stagedList, new HBox(6, unstageOne, unstageAll),
+                ignoredHeader, ignoredList,
                 messageHeader, messageArea, amendBox, commit, discardAll);
+
+        ignoredList.setCellFactory(lv -> new ListCell<>() {
+            @Override
+            protected void updateItem(String path, boolean empty) {
+                super.updateItem(path, empty);
+                if (empty || path == null) {
+                    setGraphic(null);
+                    return;
+                }
+                Label badge = new Label("I");
+                badge.getStyleClass().addAll("badge", "badge-mod");
+                setGraphic(new HBox(6, badge, fileName(path)));
+            }
+        });
+        ignoredList.setPrefHeight(90);
+        ignoredList.setMinHeight(64);
+        ignoredList.getSelectionModel().selectedItemProperty().addListener((obs, o, path) -> {
+            if (path != null) {
+                unstagedList.getSelectionModel().clearSelection();
+                stagedList.getSelectionModel().clearSelection();
+                showIgnoredFile(path);
+            }
+        });
+        updateIgnoredVisibility();
 
         unstagedList.getSelectionModel().selectedItemProperty().addListener((obs, o, item) -> {
             if (item != null) {
                 stagedList.getSelectionModel().clearSelection();
+                ignoredList.getSelectionModel().clearSelection();
                 showDiff(item, false);
             }
         });
         stagedList.getSelectionModel().selectedItemProperty().addListener((obs, o, item) -> {
             if (item != null) {
                 unstagedList.getSelectionModel().clearSelection();
+                ignoredList.getSelectionModel().clearSelection();
                 showDiff(item, true);
             }
         });
@@ -256,6 +301,7 @@ public class StagingView {
         if (!repo.git().isOpen()) {
             unstagedList.getItems().clear();
             stagedList.getItems().clear();
+            ignoredList.getItems().clear();
             diffView.getItems().clear();
             mergeBar.setVisible(false);
             mergeBar.setManaged(false);
@@ -270,6 +316,7 @@ public class StagingView {
             boolean inProgress = (Boolean) result[1];
             unstagedList.getItems().setAll(status.unstaged());
             stagedList.getItems().setAll(status.staged());
+            ignoredList.getItems().setAll(status.ignored());
             mergeBar.setVisible(inProgress);
             mergeBar.setManaged(inProgress);
             if (inProgress) {
@@ -304,6 +351,28 @@ public class StagingView {
                 diffView.setDiff(diff);
             }
         });
+    }
+
+    private void updateIgnoredVisibility() {
+        boolean show = showIgnoredBox.isSelected();
+        ignoredHeader.setVisible(show);
+        ignoredHeader.setManaged(show);
+        ignoredList.setVisible(show);
+        ignoredList.setManaged(show);
+    }
+
+    /** Muestra el contenido de un archivo ignorado (no tiene diff). */
+    private void showIgnoredFile(String path) {
+        lastDiffEntry = null;
+        diffHeader.setText("Ignorado: " + path);
+        diffView.setDiff("Cargando…");
+        repo.runTask("Cargando " + path, p -> {
+            try {
+                return repo.git().untrackedContent(path);
+            } catch (Exception e) {
+                return "(no se pudo leer el archivo)";
+            }
+        }, diffView::setDiff);
     }
 
     private void applyHunk(GitService.StatusEntry entry, boolean staged, int hunkIndex) {
@@ -439,8 +508,13 @@ public class StagingView {
         }
     }
 
-    private static String extensionOf(String path) {
-        String name = path.contains("/")
+    private static Label fileName(String path) {
+        Label label = new Label(path);
+        label.getStyleClass().add("file-name");
+        return label;
+    }
+
+    private static String extensionOf(String path) {        String name = path.contains("/")
                 ? path.substring(path.lastIndexOf('/') + 1) : path;
         int dot = name.lastIndexOf('.');
         return dot > 0 && dot < name.length() - 1
@@ -486,7 +560,7 @@ public class StagingView {
                 case "Eliminado", "Conflicto" -> "badge-del";
                 default -> "badge-mod";
             });
-            setGraphic(new HBox(6, badge, new Label(entry.path())));
+            setGraphic(new HBox(6, badge, fileName(entry.path())));
             if (entry.state().equals("Conflicto")) {
                 MenuItem resolve = new MenuItem("Resolver conflicto…");
                 resolve.setOnAction(e -> showConflictEditor(entry));

@@ -75,7 +75,8 @@ public class GitService implements AutoCloseable {
 
     public record StatusEntry(String path, String state) {}
 
-    public record WorkingTreeStatus(List<StatusEntry> staged, List<StatusEntry> unstaged) {}
+    public record WorkingTreeStatus(List<StatusEntry> staged, List<StatusEntry> unstaged,
+                                    List<String> ignored) {}
 
     public record BranchInfo(String name, String shortName, boolean remote,
                              boolean current, int ahead, int behind) {}
@@ -209,7 +210,9 @@ public class GitService implements AutoCloseable {
         s.getConflicting().forEach(p -> unstaged.add(new StatusEntry(p, "Conflicto")));
         staged.sort(Comparator.comparing(StatusEntry::path));
         unstaged.sort(Comparator.comparing(StatusEntry::path));
-        return new WorkingTreeStatus(staged, unstaged);
+        List<String> ignored = new ArrayList<>(s.getIgnoredNotInIndex());
+        ignored.sort(String::compareTo);
+        return new WorkingTreeStatus(staged, unstaged, ignored);
     }
 
     public void stage(String path, boolean deleted) throws GitAPIException {

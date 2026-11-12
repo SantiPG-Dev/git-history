@@ -111,6 +111,15 @@ public final class AppConfig {
         props.setProperty("diffIgnoreWs", String.valueOf(ignore));
     }
 
+    /** Si el staging muestra la lista de archivos ignorados. */
+    public boolean showIgnored() {
+        return Boolean.parseBoolean(props.getProperty("showIgnored", "false"));
+    }
+
+    public void setShowIgnored(boolean show) {
+        props.setProperty("showIgnored", String.valueOf(show));
+    }
+
     public void save() throws IOException {
         Files.createDirectories(file.getParent());
         try (OutputStream out = Files.newOutputStream(file)) {
