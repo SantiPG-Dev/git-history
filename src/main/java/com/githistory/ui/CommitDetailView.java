@@ -130,6 +130,8 @@ public class CommitDetailView {
                 setGraphic(new HBox(6, badge(file.changeType()), fileName(file.path())));
                 MenuItem blame = new MenuItem("Ver blame de este archivo");
                 blame.setOnAction(e -> repo.showBlame(file.path(), currentCommitId));
+                MenuItem history = new MenuItem("Historial del archivo");
+                history.setOnAction(e -> repo.showFileHistory(file.path()));
                 MenuItem view = new MenuItem("Ver archivo en este commit");
                 view.setOnAction(e -> showFileAtCommit(file.path()));
                 MenuItem restore = new MenuItem("Restaurar archivo a esta versión");
@@ -140,7 +142,7 @@ public class CommitDetailView {
                     content.putString(file.path());
                     javafx.scene.input.Clipboard.getSystemClipboard().setContent(content);
                 });
-                setContextMenu(new ContextMenu(blame, view, restore,
+                setContextMenu(new ContextMenu(blame, history, view, restore,
                         new javafx.scene.control.SeparatorMenuItem(), copyPath));
             }
         });
@@ -163,9 +165,13 @@ public class CommitDetailView {
                 if (node.file() != null) {
                     setGraphic(new HBox(6, badge(node.file().changeType()), fileName(node.name())));
                     setText(null);
+                    MenuItem history = new MenuItem("Historial del archivo");
+                    history.setOnAction(e -> repo.showFileHistory(node.path()));
+                    setContextMenu(new ContextMenu(history));
                 } else {
                     setGraphic(null);
                     setText(node.path() == null ? node.name() + "/" : node.name());
+                    setContextMenu(null);
                 }
             }
         });

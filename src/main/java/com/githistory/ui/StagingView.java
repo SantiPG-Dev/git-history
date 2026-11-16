@@ -561,10 +561,13 @@ public class StagingView {
                 default -> "badge-mod";
             });
             setGraphic(new HBox(6, badge, fileName(entry.path())));
+            MenuItem history = new MenuItem("Historial del archivo");
+            history.setOnAction(e -> repo.showFileHistory(entry.path()));
             if (entry.state().equals("Conflicto")) {
                 MenuItem resolve = new MenuItem("Resolver conflicto…");
                 resolve.setOnAction(e -> showConflictEditor(entry));
-                setContextMenu(new ContextMenu(resolve));
+                setContextMenu(new ContextMenu(resolve,
+                        new javafx.scene.control.SeparatorMenuItem(), history));
             } else if (unstaged) {
                 MenuItem discard = new MenuItem("Descartar cambios");
                 discard.setOnAction(e -> discardFile(entry));
@@ -579,10 +582,16 @@ public class StagingView {
                     ignoreExt.setOnAction(e -> ignoreFile(entry.path(), true));
                     setContextMenu(new ContextMenu(discard,
                             new javafx.scene.control.SeparatorMenuItem(),
-                            ignore, ignoreExt));
+                            ignore, ignoreExt,
+                            new javafx.scene.control.SeparatorMenuItem(),
+                            history));
                 } else {
-                    setContextMenu(new ContextMenu(discard));
+                    setContextMenu(new ContextMenu(discard,
+                            new javafx.scene.control.SeparatorMenuItem(),
+                            history));
                 }
+            } else {
+                setContextMenu(new ContextMenu(history));
             }
         }
     }

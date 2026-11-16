@@ -1504,6 +1504,34 @@ public class GitService implements AutoCloseable {
         return patterns;
     }
 
+    /**
+     * Commits que modificaron un archivo, más recientes primero (sin seguir
+     * renombres: JGit LogCommand no soporta follow).
+     */
+    public List<CommitInfo> fileHistory(String path, int max)
+            throws GitAPIException, IOException {
+        Map<String, List<CommitInfo.RefLabel>> labels = refLabels();
+        List<CommitInfo> commits = new ArrayList<>();
+        for (RevCommit c : git.log().addPath(path).setMaxCount(max).call()) {
+            List<String> parents = new ArrayList<>();
+            for (RevCommit parent : c.getParents()) {
+                parents.add(parent.getId().getName());
+            }
+            PersonIdent author = c.getAuthorIdent();
+            commits.add(new CommitInfo(
+                    c.getId().getName(),
+                    c.getId().getName().substring(0, 7),
+                    c.getShortMessage(),
+                    c.getFullMessage(),
+                    author.getName(),
+                    author.getEmailAddress(),
+                    author.getWhen().toInstant(),
+                    parents,
+                    labels.getOrDefault(c.getId().getName(), List.of())));
+        }
+        return commits;
+    }
+
     /** @return false si no había cambios que guardar. */
     public boolean stashCreate(String message) throws GitAPIException {
         return stashCreate(message, false);

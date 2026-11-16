@@ -1182,6 +1182,11 @@ public class RepoView {
         });
     }
 
+    /** Historial de commits de un archivo concreto. */
+    public void showFileHistory(String path) {
+        new FileHistoryDialog(getRoot().getScene().getWindow(), this, path).showAndWait();
+    }
+
     /** Muestra u oculta la terminal integrada en la parte inferior. */
     public void toggleTerminal() {
         if (repoPath == null) {
